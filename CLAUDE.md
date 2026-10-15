@@ -3,13 +3,22 @@
 세금에 시달리는 시골 대장장이 스미스가 녹슨 검을 +20까지 강화하는 GBA 게임.
 기본 루프는 플래시 게임 「검 강화하기」를 모티브로 한다(강화 비용·확률, 실패 시 파괴, 판매가 주 수입, 깨짐 방지권, 잡템·조합소).
 기획 문서: https://claude.ai/code/artifact/73958658-7f11-4c5d-9b9d-c0411b66512b
+경제 스펙: `docs/ECONOMY_SPEC.md`
+저장소: https://github.com/kkam616/hookedsmith (`main`)
+
+## 작업 방식 (사용자 선호)
+- 답변·요약·작업 목록은 모두 한국어로.
+- 커밋·푸시는 사용자가 요청할 때만. 끝나면 "커밋할까요?"로 묻는다.
+- 화면 변경은 빌드 후 mGBA에서 직접 보고 확인한 뒤 보고한다.
+- 사용자가 그림(대개 AI 생성 일러스트)을 주면 GBA 스타일로 줄여 넣는 작업이 많다. 원본은 `assets/`에 두고 `tools/`의 변환 스크립트로 `graphics/`를 만든다.
 
 ## 환경 (집 PC DSLA3DU, Windows)
 - 엔진: Butano 21.8.0 (C++) — `C:\gba\butano` (라이브러리 `C:\gba\butano\butano`)
 - 툴체인: devkitARM (GCC 16.1.0) — `C:\devkitPro`
 - 에뮬레이터: mGBA 0.10.5 — `C:\Program Files\mGBA\mGBA.exe`
-- Python 3.14.7 (PATH에 있음)
-- Makefile: `ROMTITLE := HOOKEDSMITH`, `LIBBUTANO := ../butano/butano`
+- Python 3.14.7 (PATH에 있음), Pillow 사용
+- Makefile: `ROMTITLE := HOOKEDSMITH`, `ROMCODE := HKSM`, `LIBBUTANO := ../butano/butano`
+- EXTTOOL(빌드 전 자동 실행): `tools/make_font.py` → `tools/make_cutscenes.py`
 
 ## 빌드 / 실행
 일반 cmd(MSYS2 셸 아님)에서:
@@ -18,42 +27,69 @@ cd C:\gba\hookedsmith
 make -j8
 "C:\Program Files\mGBA\mGBA.exe" hookedsmith.gba
 ```
-- `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡힌다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
-- cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
-
-## 사양 메모
-- 화면 240×160, 스프라이트/배경 16색 팔레트
-- 그래픽은 `graphics/`에 bmp + 같은 이름의 json (Butano 규칙)
-- 단계 구간: +0~5 동네 대장간 / +6~10 소문이 퍼지다 / +11~15 왕의 눈에 띄다 / +16~20 전설에 도전
-
-- Bash/PowerShell에서 빌드할 때는 `DEVKITARM=C:\devkitPro\devkitARM`, `DEVKITPRO=C:\devkitPro` 환경변수를 넣는다.
+- Bash/PowerShell에서는 `DEVKITARM=C:\devkitPro\devkitARM`, `DEVKITPRO=C:\devkitPro` 환경변수를 넣고 `C:\devkitPro\msys2\usr\bin\make.exe`를 직접 부른다.
+- `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡혀야 한다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
-- ROM 코드는 `HKSM`. mGBA는 홈브류의 RTC를 자동으로 켜지 않으므로 `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`을 넣어 둠 (mGBA를 닫은 상태에서 고칠 것). 없으면 타이틀이 항상 낮이 된다.
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
 - 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. INFINITE가 열리고 강화 화면에서 SELECT로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
-- mGBA 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace
+- cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
 
-## 현재 상태
-- 흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 메뉴 → 강화 화면 ⇄ 상점(R) / 창고(L) / 조합소(↓). STORY = EASY(오프닝 컷씬부터), INFINITE = HARD(컷씬 없음, STORY 클리어 후 해금).
-- 오프닝 컷씬: 원본 그림은 `assets/graphics/cutscene/*.bmp`(240x112, 16색 이하, PNG여도 됨). 빌드 때 `tools/make_cutscenes.py`(EXTTOOL)가 `graphics/`에 256x256 4bpp BMP + json과 텍스트 박스 배경을 만든다. 씬 목록과 대사는 `src/main.cpp`의 `opening_scenes`. 대사는 자동 줄바꿈되고 2줄(228px)을 넘으면 assert.
-- 강화 화면 아이콘: 원본 시트 `assets/graphics/icons/ui_icons_source.webp` → `python -B tools/make_icons.py` → `graphics/icon_{upgrade,sell,storage,shop,craft}.bmp` (40px를 64x64 스프라이트 가운데에, 투명+15색). 원본 테두리는 잘라내고 2px 테두리를 새로 그린다. 빌드 때 자동으로 돌지 않으니 원본을 바꾸면 직접 실행.
-- 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
-- 타이틀 메뉴: STORY(이지) / INFINITE(하드, 스토리 클리어 시 해금 예정, 지금은 회색·선택 불가) / OPTION(준비 중)
-- 경제: `docs/ECONOMY_SPEC.md` 기준. 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`
-  - +0~+20만 구현 (+21 이후 재료 강화 행은 아직 안 넣음). 실패 = 파괴 + 잡템 1~3개, 방지권이 있으면 쓸지 묻는다
-  - 상점: 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%)
-  - 창고(L) = 인벤토리: 잡템 탭(강화 실패로 얻은 아이템, 보기만), 보관한 검 탭(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림). L/R로 탭 전환
-  - 조합소(↓): 잡템 → 방지권 / 검(창고로)
-- 강화 화면 버튼은 아이콘(박스 배경 없음): 모두 40px. 창고(L)·상점(R) 위쪽 양 모서리, 판매(B)·강화(A) 오른쪽 아래 대각선, 조합(↓) 아래 가운데. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 아이콘이 회색이 된다.
-  - 스펙에 없어 임시로 정한 값: 시작 $100, +0인데 강화비가 없으면 이웃이 $50, 보관함 8칸, 잡템 이름
-- 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다
-- 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것
-- 강화 화면 위쪽 메시지 줄은 창고·상점 아이콘 사이라 폭 150px 이하로 쓴다
-- 강화 화면 가운데: 검(`tools/make_sword.py`, 그림 53줄)이 모루(`tools/make_anvil.py`, 원본 `assets/graphics/anvil/anvil_source.webp`에서 다각형으로 잘라 60x34) 위에 선다. 바탕은 단색.
+### mGBA
+- 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace
+- RTC: mGBA는 홈브류의 시계를 자동으로 켜지 않는다. `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`이 들어 있다 (섹션 이름은 `gba.override.`가 아니라 `override.`). mGBA를 닫은 상태에서만 고칠 것(종료할 때 덮어씀). 없으면 타이틀이 항상 낮.
+- 화면 확인(computer-use): 모니터가 두 대(BenQ GW2780 가로, BenQ GL2580 세로)라 창이 어느 쪽에 뜰지 모른다. 실행 후 PowerShell `(New-Object -ComObject WScript.Shell).AppActivate(<mGBA PID>)`로 앞으로 가져온 뒤 `hold_key`(0.1초)로 입력한다. 짧은 `key`나 반복 입력은 게임이 못 받는다. `open_application`은 빈 mGBA를 새로 띄우니 쓰지 않는다.
+
+## 현재 상태 (마지막 커밋 a73e4e0)
+흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 → 강화 화면 ⇄ 상점(R) / 창고(L) / 조합소(↓)
+- STORY = EASY: 오프닝 컷씬 후 강화 화면
+- INFINITE = HARD: 컷씬 없음. STORY 클리어 후 해금 예정이라 지금은 회색·선택 불가 (`main()`의 `infinite_unlocked`)
+- OPTION: "COMING SOON"만 뜬다
+
+### 타이틀·스플래시
+- 타이틀 그림은 RTC 시각으로 낮(06~14)/노을(14~22)/밤(22~06). 시계가 없으면 낮.
+- 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것 (원본 6색).
+- 난수 시드는 타이틀에서 메뉴를 고른 프레임 수.
+
+### 오프닝 컷씬
+- 원본 `assets/graphics/cutscene/*.bmp`(240x112, 16색 이하, 확장자만 bmp이고 실제 PNG). `tools/make_cutscenes.py`가 빌드 때 `graphics/`에 256x256 4bpp BMP와 텍스트 박스 배경을 만든다. 팔레트 0번(가장 많은 색)을 backdrop 색으로 맞춘다.
+- 씬 목록과 대사는 `src/main.cpp`의 `opening_scenes`. 화자 이름은 노란색, A로 넘기기, 대기 중 오른쪽 아래에 ▼ 깜빡임, 씬 전환 페이드.
+- 대사는 자동 줄바꿈. 첫 줄 228px, 둘째 줄 212px(▼ 자리)를 넘으면 assert.
+
+### 강화 화면 배치 (240x160)
+- 가운데: 검(`tools/make_sword.py`, 그림 53줄)이 모루(`tools/make_anvil.py`, 원본 `assets/graphics/anvil/anvil_source.webp`에서 다각형으로 잘라 60x34) 위에 선다. 바탕은 단색 (4,3,3).
+- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_source.webp`): 창고(L)·상점(R) 위쪽 양 모서리, 판매(B)·강화(A) 오른쪽 아래 대각선, 조합(↓) 아래 가운데. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 아이콘이 회색.
 - 왼쪽 정보 줄(x 4부터): 강화비·판매가·이름·성공률·방지권·돈. 이름·성공률 줄은 모루 왼쪽 끝(x 90) 앞에서 끝나야 하고(최대 84px), 강화비·판매가 줄은 칼날(x 117) 앞에서 끝나야 한다.
+- 위쪽 메시지 줄은 창고·상점 아이콘 사이라 폭 150px 이하.
+- 방지권 질문은 메시지 줄에 "방지권 N장 쓸까?", 이름·성공률 자리에 "A 쓴다" / "B 안 쓴다".
+
+### 경제 (`docs/ECONOMY_SPEC.md`)
+- 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`.
+- +0~+20만 구현 (+21 이후 재료 강화 행은 아직 안 넣음). 금액은 `$` 표시.
+- 실패 = 파괴 + 잡템 1~3개. 방지권이 충분하면 쓸지 묻고, 쓰면 단계 유지.
+- 상점(R): 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%).
+- 창고(L) = 인벤토리: 잡템 탭(보기만), 보관한 검 탭(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림). L/R로 탭 전환.
+- 조합소(↓): 잡템 → 방지권 / 검(창고로).
+- 스펙에 없어 임시로 정한 값: 시작 $100, +0인데 강화비가 없으면 이웃이 $50, 보관함 8칸, 잡템 이름(4글자 이하), 워프 확률 50%.
+
+### 코드·그래픽 규칙
+- 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다 (한글 13px 폭).
+- 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
+- `bn::string<N>`은 바이트 수 기준 (한글 1자 = 3바이트). 넘치면 게임이 멈추니 넉넉히 잡는다.
+- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_sword.py`. 원본을 바꾸면 직접 실행.
+- 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색(예: 모루의 밝은 파란색)을 다른 색과 합쳐 버린다.
+
+## 정해 둔 것 / 미정
+- 세이브는 +20 엔딩을 먼저 만든 뒤, 진행 상황 + INFINITE 해금 플래그를 같이 만들기로 했다.
+- 영어 지원(OPTION에서 Language 전환 예정) 검토 결과: 가능하지만 준비가 필요하다.
+  - 한글 문자열이 코드에 박혀 있고(81개+), 한국어 어순으로 조각을 이어 붙이는 문장이 있다 → 언어별 문자열 표 + 문장 틀로 바꿔야 한다.
+  - 영어가 더 길어서 넘치는 곳: 아이콘 사이 메시지 줄, 왼쪽 정보 줄, 창고·조합소 잡템 이름 칸.
+  - 언어 설정도 세이브에 저장해야 한다.
+  - 추천: 화면이 더 늘기 전에 문자열 표부터 만들어 두기.
+- STORY/INFINITE 난이도 차이는 지금 이지/하드 테이블 차이뿐이다.
 
 ## 다음 작업
-1. 세이브 (난이도, 돈, 단계, 방지권, 잡템, 보관 검, INFINITE 해금)
-2. +20 엔딩
-3. +16~+20 재료 강화 구조 (스펙 미정)
-4. OPTION 항목
+1. +20 엔딩
+2. 세이브 (난이도, 돈, 단계, 방지권, 잡템, 보관 검, INFINITE 해금, 나중에 언어)
+3. 문자열 표 (영어 지원 준비)
+4. +16~+20 재료 강화 구조 (스펙 미정)
+5. OPTION 항목 (Language 등)
