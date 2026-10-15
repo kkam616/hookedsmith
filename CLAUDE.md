@@ -28,6 +28,8 @@ make -j8
 
 - Bash/PowerShell에서 빌드할 때는 `DEVKITARM=C:\devkitPro\devkitARM`, `DEVKITPRO=C:\devkitPro` 환경변수를 넣는다.
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
+- ROM 코드는 `HKSM`. mGBA는 홈브류의 RTC를 자동으로 켜지 않으므로 `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`을 넣어 둠 (mGBA를 닫은 상태에서 고칠 것). 없으면 타이틀이 항상 낮이 된다.
+- ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
 
 ## 현재 상태
 - 흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 메뉴 → 강화 화면
