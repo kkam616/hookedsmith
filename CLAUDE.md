@@ -59,7 +59,7 @@ make -j8
 
 ### 강화 화면 배치 (240x160)
 - 배경: 대장간 그림(`assets/graphics/forge/forge_bg_source.webp` → `tools/make_forge_bg.py`, 수동 실행, 8bpp 64색). 가운데 검·모루는 지우고 스프라이트(검은 단계마다 한 장씩 `assets/graphics/swords/sword_NN_name.png` → `tools/make_swords.py`가 빌드 때 `graphics/sword_NN.bmp`로 변환, 모루 `tools/make_anvil.py`)를 올린다. 검 그림 규격: 32x64, 4bpp 인덱스, 0번 투명, 그림은 y 0~52·x 7~24. 글자 자리(위·아래 가운데)는 배경을 어둡게 눌러 둔다.
-- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_v2.webp`): 상점(L) 왼쪽 위, 화구(R) 오른쪽 위, 창고(←)·잡화(↓) 왼쪽, 판매(B)·강화(A) 오른쪽. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 회색.
+- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_v2.webp`): 상점(L) 왼쪽 위, 화구(R) 오른쪽 위(상점·화구는 +0 검일 때만 컬러·사용 가능, 그 밖에는 회색), 창고(←)·잡화(↓) 왼쪽, 판매(B)·강화(A) 오른쪽. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 회색.
 - 위쪽 가운데: 이름(메시지가 90프레임 동안 이 자리를 대신 차지) + 성공률. 방지권 질문은 이름 자리에 질문, 성공률 자리에 "A 쓴다  B 안 쓴다".
 - 아래 가운데: 강화비·판매가 (가운데 정렬, 잡템 아이콘과 판매 아이콘 사이 약 72px). 1,000 이상은 `$1.3K`/`$2.4M`처럼 줄여 표시(`format_money_short`). 왼쪽 아래 방지권, 오른쪽 아래 돈.
 - 스프라이트 타일(1024개)이 빠듯하다. 화면을 오갈 때 `main()`에서 `bn::core::update()`를 한 번 불러 이전 화면의 타일을 반환시킨다 (안 하면 "Sprite tiles allocate failed").

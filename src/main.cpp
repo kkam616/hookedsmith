@@ -580,8 +580,6 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     bn::sprite_ptr upgrade_icon = create_icon(bn::sprite_items::icon_upgrade, upgrade_button);
 
     bn::vector<bn::sprite_ptr, 8> label_sprites;
-    generate_badge(shop_button, "L", label_sprites);
-    generate_badge(furnace_button, "R", label_sprites);
     generate_badge(swords_button, "←", label_sprites);
     generate_badge(bag_button, "↓", label_sprites);
 
@@ -592,10 +590,19 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     bn::vector<bn::sprite_ptr, 1> upgrade_badge;
     generate_badge(upgrade_button, "A", upgrade_badge);
 
+    // 상점·화구는 +0 검일 때만 쓸 수 있다
+    bn::vector<bn::sprite_ptr, 1> shop_badge;
+    generate_badge(shop_button, "L", shop_badge);
+
+    bn::vector<bn::sprite_ptr, 1> furnace_badge;
+    generate_badge(furnace_button, "R", furnace_badge);
+
     bn::sprite_palette_ptr normal_palette = sell_badge[0].palette();
     bn::sprite_palette_ptr locked_palette = create_locked_palette();
     bn::sprite_palette_ptr sell_icon_palette = sell_icon.palette();
     bn::sprite_palette_ptr upgrade_icon_palette = upgrade_icon.palette();
+    bn::sprite_palette_ptr shop_icon_palette = shop_icon.palette();
+    bn::sprite_palette_ptr furnace_icon_palette = furnace_icon.palette();
 
     auto set_button_enabled = [&](bn::sprite_palette_ptr& icon_palette, bn::ivector<bn::sprite_ptr>& badge,
                                   bool enabled)
@@ -729,6 +736,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         money_text.set_text(format_money(eco.money()));
 
         bool idle = current_phase == phase::IDLE;
+        set_button_enabled(shop_icon_palette, shop_badge, eco.level() == 0);
+        set_button_enabled(furnace_icon_palette, furnace_badge, eco.level() == 0);
         set_button_enabled(sell_icon_palette, sell_badge, idle && eco.can_sell());
         set_button_enabled(upgrade_icon_palette, upgrade_badge,
                            idle && ! eco.at_max_level() && eco.can_afford_upgrade());
@@ -775,6 +784,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             // 판매·강화는 못 쓰는 상태여도 도움말에서는 컬러로 보여준다
             set_button_enabled(sell_icon_palette, sell_badge, true);
             set_button_enabled(upgrade_icon_palette, upgrade_badge, true);
+            set_button_enabled(shop_icon_palette, shop_badge, true);
+            set_button_enabled(furnace_icon_palette, furnace_badge, true);
         }
         else
         {
@@ -881,15 +892,18 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     refresh_status();
                 }
             }
-            else if(bn::keypad::l_pressed())
+            else if(bn::keypad::l_pressed() || bn::keypad::r_pressed())
             {
-                fade_screen(false);
-                return forge_exit::SHOP;
-            }
-            else if(bn::keypad::r_pressed())
-            {
-                fade_screen(false);
-                return forge_exit::FURNACE;
+                if(eco.level() != 0)
+                {
+                    message_text("+0일 때만 갈 수 있다");
+                }
+                else
+                {
+                    bool shop = bn::keypad::l_pressed();
+                    fade_screen(false);
+                    return shop ? forge_exit::SHOP : forge_exit::FURNACE;
+                }
             }
             else if(bn::keypad::left_pressed())
             {
@@ -1606,7 +1620,7 @@ int main()
 
     hs::economy eco(choice == title_choice::STORY ? hs::difficulty::EASY : hs::difficulty::HARD);
     bn::seed_random random(seed);
-    bn::string_view message = "+29까지 강화하자";
+    bn::string_view message = "";
 
     while(true)
     {
