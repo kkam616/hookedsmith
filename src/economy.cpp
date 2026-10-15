@@ -135,11 +135,6 @@ int32_t economy::sell()
     return earned;
 }
 
-void economy::take_loan()
-{
-    _add_money(loan_money);
-}
-
 int32_t economy::price(const shop_item& item) const
 {
     return _diff == difficulty::HARD ? item.hard_usd : item.easy_usd;

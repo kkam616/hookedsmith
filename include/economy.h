@@ -67,9 +67,7 @@ public:
     [[nodiscard]] bool can_sell() const { return row().sell_usd > 0; }
     int32_t sell();
 
-    // +0인데 강화비가 없으면 다시 시작할 수 없으므로 돈을 받는다
-    [[nodiscard]] bool needs_loan() const { return _level == 0 && ! can_afford_upgrade(); }
-    void take_loan();
+    // +0인데 강화비가 없으면 더 할 수 있는 게 없다 → 나중에 게임 오버 이벤트로 처리할 예정 (아직 없음)
 
     [[nodiscard]] int32_t price(const shop_item& item) const;
     buy_result buy(const shop_item& item, bn::seed_random& random);

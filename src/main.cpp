@@ -894,16 +894,6 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
     };
 
-    // +0으로 돌아왔는데 강화비도 없으면 이웃이 돈을 준다
-    auto check_loan = [&]()
-    {
-        if(eco.needs_loan())
-        {
-            eco.take_loan();
-            message_text("이웃이 빵값을 줬다");
-        }
-    };
-
     auto destroy_sword = [&]()
     {
         hs::drop dropped = eco.destroy(random);
@@ -922,13 +912,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
 
         current_phase = phase::IDLE;
-        check_loan();
         refresh_status();
     };
 
     refresh_status();
     message_text(first_message);
-    check_loan();
     refresh_status();
     fade_screen(true);
 
@@ -989,7 +977,6 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     bn::string<48> sold_line("판매 +");
                     sold_line += format_money(eco.sell());
                     message_text(sold_line);
-                    check_loan();
                     refresh_status();
                 }
             }

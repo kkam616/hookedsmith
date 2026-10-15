@@ -170,7 +170,6 @@ constexpr int drop_count_pct[] = { 10, 25, 30, 20, 10, 5 };
 // 스펙에 없는 임시값
 constexpr int32_t start_money_easy = 10000;     // 스토리 시작 소지금 (100만원 ÷ 100)
 constexpr int32_t start_money_hard = 20000;     // 하드 시작 소지금 (200만원 ÷ 100)
-constexpr int32_t loan_money = 50;              // +0인데 강화비가 없을 때 이웃이 주는 돈
 constexpr int32_t money_cap = 999'999'999;      // 소지금 상한
 constexpr int max_stored_swords = 8;            // 보관함 칸 수
 
