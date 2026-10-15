@@ -47,6 +47,7 @@ make -j8
 - OPTION: "COMING SOON"만 뜬다
 
 ### 타이틀·스플래시
+- 타이틀 음악: `assets/audio/title_chiptune.wav`(8bit 모노, 18157Hz) → `tools/make_music.py`가 빌드 때 `audio/title_chiptune.xm`(샘플 전체 forward loop)으로 변환. 타이틀 시작 때 `bn::music_items::title_chiptune.play(1)`, 메뉴를 고르면 페이드와 함께 볼륨을 줄이고 `bn::music::stop()`. wav를 `dmg_audio/`에 넣으면 안 됨(그 폴더는 DMG 사운드용). 곡을 더 넣을 땐 `assets/audio/`에 wav를 두면 같은 방식으로 변환된다. 원곡이 있다면 배포 전 사용 허가 확인.
 - 타이틀 그림은 RTC 시각으로 낮(06~14)/노을(14~22)/밤(22~06). 시계가 없으면 낮.
 - 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것 (원본 6색).
 - 난수 시드는 타이틀에서 메뉴를 고른 프레임 수.

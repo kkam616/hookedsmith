@@ -55,7 +55,7 @@ USERLIBS    	:=
 DEFAULTLIBS 	:=  
 STACKTRACE		:=	
 USERBUILD   	:=  
-EXTTOOL     	:=  $(PYTHON) -B tools/make_font.py && $(PYTHON) -B tools/make_cutscenes.py && $(PYTHON) -B tools/make_swords.py
+EXTTOOL     	:=  $(PYTHON) -B tools/make_font.py && $(PYTHON) -B tools/make_cutscenes.py && $(PYTHON) -B tools/make_swords.py && $(PYTHON) -B tools/make_music.py
 
 #---------------------------------------------------------------------------------------------------------------------
 # Export absolute butano path:

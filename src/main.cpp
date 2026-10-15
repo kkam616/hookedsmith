@@ -7,6 +7,8 @@
 #include "bn_color.h"
 #include "bn_fixed.h"
 #include "bn_keypad.h"
+#include "bn_music.h"
+#include "bn_music_items.h"
 #include "bn_regular_bg_ptr.h"
 #include "bn_seed_random.h"
 #include "bn_sprite_palette_ptr.h"
@@ -326,13 +328,20 @@ void run_splash()
 }
 
 // in이면 검정→화면, 아니면 화면→검정
-void fade_screen(bool in)
+// fade_music: 페이드와 함께 재생 중인 음악의 볼륨도 줄인다 (페이드 아웃 때만 쓴다)
+void fade_screen(bool in, bool fade_music = false)
 {
     for(int f = 0; f <= SPLASH_FADE; ++f)
     {
         bn::fixed intensity = bn::fixed(in ? SPLASH_FADE - f : f) / SPLASH_FADE;
         bn::bg_palettes::set_fade(bn::color(0, 0, 0), intensity);
         bn::sprite_palettes::set_fade(bn::color(0, 0, 0), intensity);
+
+        if(fade_music)
+        {
+            bn::music::set_volume(1 - intensity);
+        }
+
         bn::core::update();
     }
 }
@@ -366,6 +375,9 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
     center_generator.set_center_alignment();
 
     bn::bg_palettes::set_transparent_color(bn::color(4, 3, 3));
+
+    // 타이틀 음악 (assets/audio/title_chiptune.wav → tools/make_music.py가 루프 XM으로 변환). 게임을 시작하면 끈다.
+    bn::music_items::title_chiptune.play(1);
 
     const bn::regular_bg_item* title_item = &title_item_for_now();
     bn::regular_bg_ptr bg = title_item->create_bg(title_bg_x, title_bg_y);
@@ -436,7 +448,8 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
             else
             {
                 seed = frame;
-                fade_screen(false);
+                fade_screen(false, true);
+                bn::music::stop();
                 return title_choice(selected);
             }
         }
