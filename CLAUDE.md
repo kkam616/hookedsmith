@@ -34,7 +34,9 @@ make -j8
 - mGBA 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace
 
 ## 현재 상태
-- 흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 메뉴 → 강화 화면 ⇄ 상점(R) / 창고(L)
+- 흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 메뉴 → 강화 화면 ⇄ 상점(R) / 창고(L). STORY = EASY(오프닝 컷씬부터), INFINITE = HARD(컷씬 없음, STORY 클리어 후 해금).
+- 오프닝 컷씬: 원본 그림은 `assets/graphics/cutscene/*.bmp`(240x112, 16색 이하, PNG여도 됨). 빌드 때 `tools/make_cutscenes.py`(EXTTOOL)가 `graphics/`에 256x256 4bpp BMP + json과 텍스트 박스 배경을 만든다. 씬 목록과 대사는 `src/main.cpp`의 `opening_scenes`. 대사는 자동 줄바꿈되고 2줄(228px)을 넘으면 assert.
+- 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
 - 타이틀 메뉴: STORY(이지) / INFINITE(하드, 스토리 클리어 시 해금 예정, 지금은 회색·선택 불가) / OPTION(준비 중)
 - 경제: `docs/ECONOMY_SPEC.md` 기준. 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`
   - +0~+20만 구현 (+21 이후 재료 강화 행은 아직 안 넣음). 실패 = 파괴 + 잡템 1~3개, 방지권이 있으면 쓸지 묻는다

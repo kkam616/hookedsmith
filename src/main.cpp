@@ -1,4 +1,6 @@
 #include "bn_core.h"
+#include "bn_array.h"
+#include "bn_assert.h"
 #include "bn_bg_palettes.h"
 #include "bn_sprite_palettes.h"
 #include "bn_color.h"
@@ -9,6 +11,7 @@
 #include "bn_sprite_palette_ptr.h"
 #include "bn_sprite_ptr.h"
 #include "bn_sprite_text_generator.h"
+#include "bn_span.h"
 #include "bn_string.h"
 #include "bn_time.h"
 #include "bn_vector.h"
@@ -18,6 +21,11 @@
 #include "bn_regular_bg_items_title_sunset.h"
 #include "bn_regular_bg_items_splash_studio.h"
 #include "bn_regular_bg_items_game_frame.h"
+#include "bn_regular_bg_items_cutscene_textbox.h"
+#include "bn_regular_bg_items_scene1_bedside.h"
+#include "bn_regular_bg_items_scene2_anvil.h"
+#include "bn_regular_bg_items_scene3_father_close.h"
+#include "bn_regular_bg_items_scene4_forge_door.h"
 #include "bn_sprite_items_sword.h"
 #include "economy.h"
 #include "hs_font.h"
@@ -126,10 +134,30 @@ private:
     bn::vector<bn::sprite_ptr, 16> _sprites;
 };
 
+// 글자 색을 따로 바꾸기 위한 폰트 팔레트 복사본.
+// 글리프가 안 쓰는 1번 색을 바꿔 두지 않으면, 나중에 만드는 일반 글자가 색이 같은 이 팔레트를 찾아 공유해 버린다.
+bn::sprite_palette_ptr create_private_font_palette()
+{
+    const bn::sprite_palette_item& item = hs::font.item().palette_item();
+    const bn::span<const bn::color>& source = item.colors_ref();
+    bn::array<bn::color, 16> colors;
+
+    for(int index = 0; index < source.size(); ++index)
+    {
+        colors[index] = source[index];
+    }
+
+    colors[1] = bn::color(31, 0, 31);
+
+    bn::sprite_palette_ptr result = bn::sprite_palette_ptr::create_new(item);
+    result.set_colors(colors);
+    return result;
+}
+
 // 잠긴 메뉴·쓸 수 없는 버튼 글자를 회색으로 보이게 하는 전용 팔레트
 bn::sprite_palette_ptr create_locked_palette()
 {
-    bn::sprite_palette_ptr result = bn::sprite_palette_ptr::create_new(hs::font.item().palette_item());
+    bn::sprite_palette_ptr result = create_private_font_palette();
     result.set_fade(bn::color(12, 12, 12), bn::fixed(0.6));
     return result;
 }
@@ -984,6 +1012,168 @@ void run_storage(hs::economy& eco)
     fade_screen(false);
 }
 
+// ─── 오프닝 컷씬 ─────────────────────────────────────────────────────
+// 그림은 assets/graphics/cutscene/ → tools/make_cutscenes.py가 graphics/로 변환 (240x112, 위쪽)
+// 아래 48줄은 텍스트 박스: 화자 1줄 + 대사 2줄. 대사는 자동 줄바꿈하고 2줄을 넘으면 assert.
+
+struct dialogue_line
+{
+    const char* speaker;
+    const char* text;
+};
+
+struct cutscene_scene
+{
+    const bn::regular_bg_item& bg;
+    bn::span<const dialogue_line> lines;
+};
+
+constexpr dialogue_line scene1_lines[] = {
+    { "아버지", "우리 가문은... 시공간을 초월하는 전설의 대장장이 집안이었다." },
+    { "아버지", "어떻게서든... 이름을 알려라. 가문의 명예를 높이던, 부자가 되던..." },
+};
+
+constexpr dialogue_line scene2_lines[] = {
+    { "아버지", "이 모루와 함께라면..." },
+};
+
+constexpr dialogue_line scene3_lines[] = {
+    { "스미스", "아버지...!!" },
+};
+
+constexpr dialogue_line scene4_lines[] = {
+    { "스미스", "아버지의 소원을 이루겠다." },
+    { "스미스", "기필코... 반드시." },
+};
+
+constexpr cutscene_scene opening_scenes[] = {
+    { bn::regular_bg_items::scene1_bedside, scene1_lines },
+    { bn::regular_bg_items::scene2_anvil, scene2_lines },
+    { bn::regular_bg_items::scene3_father_close, scene3_lines },
+    { bn::regular_bg_items::scene4_forge_door, scene4_lines },
+};
+
+constexpr int textbox_x = -114;
+constexpr int textbox_width = 228;
+constexpr int indicator_width = 16;                                     // 둘째 줄 오른쪽 끝의 ▼ 자리
+constexpr int second_line_width = textbox_width - indicator_width;
+constexpr int indicator_x = textbox_x + textbox_width - 12;
+constexpr int indicator_blink_frames = 20;
+constexpr int speaker_y = 41;
+constexpr int first_line_y = 56;
+constexpr int second_line_y = 71;
+
+using dialogue_string = bn::string<160>;
+
+// 공백 단위로 끊어 두 줄로 나눈다 (둘째 줄은 ▼ 자리만큼 짧게)
+void wrap_dialogue(const bn::sprite_text_generator& generator, const char* text,
+                   dialogue_string& first, dialogue_string& second)
+{
+    dialogue_string* line = &first;
+    bn::string_view rest(text);
+
+    while(! rest.empty())
+    {
+        int space = 0;
+
+        while(space < rest.size() && rest[space] != ' ')
+        {
+            ++space;
+        }
+
+        bn::string_view word = rest.substr(0, space);
+        rest = space < rest.size() ? rest.substr(space + 1) : bn::string_view();
+
+        dialogue_string candidate = *line;
+
+        if(! candidate.empty())
+        {
+            candidate.push_back(' ');
+        }
+
+        candidate.append(word);
+
+        int limit = line == &first ? textbox_width : second_line_width;
+
+        if(line->empty() || generator.width(candidate) <= limit)
+        {
+            *line = candidate;
+        }
+        else
+        {
+            BN_ASSERT(line == &first, "Dialogue too long: ", text);
+            line = &second;
+            line->append(word);
+        }
+    }
+
+    BN_ASSERT(generator.width(first) <= textbox_width && generator.width(second) <= second_line_width,
+              "Dialogue too long: ", text);
+}
+
+void run_opening_cutscene()
+{
+    bn::sprite_text_generator left_generator(hs::font);
+    left_generator.set_left_alignment();
+
+    bn::regular_bg_ptr textbox_bg = bn::regular_bg_items::cutscene_textbox.create_bg(title_bg_x, title_bg_y);
+
+    // 화자 이름은 노란빛으로 구분한다
+    bn::sprite_palette_ptr speaker_palette = create_private_font_palette();
+    speaker_palette.set_fade(bn::color(31, 24, 8), bn::fixed(0.5));
+
+    bn::vector<bn::sprite_ptr, 8> speaker_sprites;
+    text_line first_text(left_generator, textbox_x, first_line_y);
+    text_line second_text(left_generator, textbox_x, second_line_y);
+
+    // A를 누르라는 깜빡이는 ▼
+    bn::vector<bn::sprite_ptr, 1> indicator_sprites;
+    left_generator.generate(indicator_x, second_line_y, "▼", indicator_sprites);
+    bn::sprite_ptr& indicator = indicator_sprites[0];
+    indicator.set_visible(false);
+
+    for(const cutscene_scene& scene : opening_scenes)
+    {
+        bn::regular_bg_ptr scene_bg = scene.bg.create_bg(title_bg_x, title_bg_y);
+
+        // 그림의 팔레트 0번(투명)은 backdrop으로 보이므로 같은 색으로 맞춘다
+        bn::bg_palettes::set_transparent_color(scene.bg.palette_item().colors_ref()[0]);
+
+        for(int index = 0; index < scene.lines.size(); ++index)
+        {
+            const dialogue_line& line = scene.lines[index];
+            dialogue_string first;
+            dialogue_string second;
+            wrap_dialogue(left_generator, line.text, first, second);
+
+            speaker_sprites.clear();
+            left_generator.generate(textbox_x, speaker_y, line.speaker, speaker_sprites);
+            set_sprites_palette(speaker_sprites, speaker_palette);
+            first_text.set_text(first);
+            second_text.set_text(second);
+
+            if(index == 0)
+            {
+                fade_screen(true);
+            }
+
+            int frame = 0;
+
+            do
+            {
+                indicator.set_visible((frame / indicator_blink_frames) % 2 == 0);
+                ++frame;
+                bn::core::update();
+            }
+            while(! bn::keypad::a_pressed());
+
+            indicator.set_visible(false);
+        }
+
+        fade_screen(false);
+    }
+}
+
 }
 
 int main()
@@ -999,7 +1189,14 @@ int main()
 
     unsigned seed = 0;
     title_choice choice = run_title(infinite_unlocked, seed);
-    hs::economy eco(choice == title_choice::INFINITE ? hs::difficulty::HARD : hs::difficulty::EASY);
+
+    // STORY = 이지(오프닝 컷씬부터), INFINITE = 하드 (스토리 클리어 후 해금)
+    if(choice == title_choice::STORY)
+    {
+        run_opening_cutscene();
+    }
+
+    hs::economy eco(choice == title_choice::STORY ? hs::difficulty::EASY : hs::difficulty::HARD);
     bn::seed_random random(seed);
     bn::string_view message = "+20까지 강화하자";
 
