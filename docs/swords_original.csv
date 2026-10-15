@@ -1,0 +1,61 @@
+mode,level,name_kr,name_en,enhance_cost,material_cost,success_rate,sell_price,protection_tickets,drop_kr,drop_en,notes
+Hard,+0,낡은 단검,Worn Dagger,500,,1.0,,,,,
+Hard,+1,쓸만한 단검,Decent Dagger,500,,0.98,200,,,,
+Hard,+2,견고한 단검,Sturdy Dagger,1000,,0.95,500,,,,
+Hard,+3,바이킹 소드,Viking Sword,2000,,0.93,1000,,,,
+Hard,+4,불타는 검,Burning Sword,4000,,0.9,2000,1,,,
+Hard,+5,냉기의 소드,Sword of Frost,7000,,0.86,6000,1,,,
+Hard,+6,양날 검,Double-Edged Sword,10000,,0.81,15000,1,국적불분명 철조각,Iron Scrap of Unknown Origin,
+Hard,+7,심판자의 대검,Judge's Greatsword,15000,,0.75,25000,1,국적불분명 철조각,Iron Scrap of Unknown Origin,
+Hard,+8,마력의 검,Sword of Magic Power,22000,,0.7,50000,1,국적불분명 철조각,Iron Scrap of Unknown Origin,
+Hard,+9,타우 스워드,Tau Sword,30000,,0.66,90000,1,타우의 뼈 부스러기,Tau's Bone Fragments,
+Hard,+10,형광검,Fluorescent Sword,30000,,0.62,180000,1,빛 바랜 형광물질,Faded Fluorescent Material,
+Hard,+11,피묻은 검,Bloodstained Sword,51000,,0.61,500000,1,스위스산 철조각,Swiss Iron Scrap,
+Hard,+12,화염의 쌍검,Twin Blades of Flame,70000,,0.54,1000000,1,스위스산 철조각,Swiss Iron Scrap,
+Hard,+13,불꽃 마검,Flame Demon Blade,80000,,0.5,2000000,2,불꽃마검 손잡이,Flame Demon Blade Handle,"Cost shown as 800,000 in-game (display bug); actual 80,000"
+Hard,+14,마검 아포피스,Demon Blade Apophis,100000,,0.49,5000000,3,사악한 영혼,Wicked Soul,
+Hard,+15,데몬 배틀 엑스,Demon Battle Axe,130000,,0.46,10000000,4,도끼 가루,Axe Dust,
+Hard,+16,투명 검,Transparent Sword,170000,,0.44,20000000,7,투명 물질,Transparent Material,Drop shown as 0 in-game but actually drops — press Pick Up
+Hard,+17,날렵한 용검,Agile Dragon Sword,220000,,0.4,44500000,9,,,
+Hard,+18,샤이니 소드,Shiny Sword,300000,,0.38,72000000,10,,,
+Hard,+19,왕푸야샤,Wangpuyasha,400000,,0.35,120000000,12,,,Keep: used as material for +21
+Hard,+20,다색검,Multicolor Sword,650000,,0.33,240000000,15,,,
+Hard,+21,템페스트 골드,Tempest Gold,,1x Wangpuyasha,0.3,300000000,17,,,Keep: used as material for +22
+Hard,+22,샤프 워커,Sharp Walker,,2x Tempest Gold,0.27,400000000,20,,,Keep: used as material for +24
+Hard,+23,피에로의 쌍검,Pierrot's Twin Blades,,12x Wicked Soul,0.27,550000000,22,,,Needs Wicked Souls — keep them
+Hard,+24,도룡도,Doryongdo (Dragon-Slaying Saber),,1x Sharp Walker,0.25,750000000,23,,,
+Hard,+25,안 강해보이는 검,Sword That Doesn't Look Strong,,15x Axe Dust,0.35,400000000,23,,,Bug: enters as Easy-mode data (rate/price shown are Easy values)
+Hard,+26,메두사,Medusa,5000000,,0.5,1800000000,Not usable,,,
+Hard,+27,오딧세이 소드,Odyssey Sword,,2x Transparent Material,0.4,2500000000,Not usable,,,Needs Transparent Material — keep it
+Hard,+28,모자이칼,Mosaic Blade (Mojaikal),0,,0.15,Not sellable,Not usable,,,Free to enhance; cannot be sold
+Hard,+29,화염에 달군 검,Flame-Heated Sword,,,,,,,,Final sword (no further data)
+Easy,+0,낡은 단검,Worn Dagger,300,,1.0,,,,,
+Easy,+1,쓸만한 단검,Decent Dagger,300,,1.0,150,,,,
+Easy,+2,견고한 단검,Sturdy Dagger,500,,1.0,400,,,,
+Easy,+3,바이킹 소드,Viking Sword,500,,0.95,600,,,,
+Easy,+4,불타는 검,Burning Sword,1000,,0.95,800,,,,
+Easy,+5,냉기의 소드,Sword of Frost,1500,,0.9,1600,,,,
+Easy,+6,양날 검,Double-Edged Sword,2000,,0.9,3500,1,국적불분명 철조각,Iron Scrap of Unknown Origin,
+Easy,+7,심판자의 대검,Judge's Greatsword,2000,,0.9,6100,1,국적불분명 철조각,Iron Scrap of Unknown Origin,
+Easy,+8,마력의 검,Sword of Magic Power,3000,,0.85,10000,1,국적불분명 철조각,Iron Scrap of Unknown Origin,
+Easy,+9,타우 스워드,Tau Sword,5000,,0.8,20000,1,타우의 뼈 부스러기,Tau's Bone Fragments,
+Easy,+10,형광검,Fluorescent Sword,10900,,0.8,35100,1,빛 바랜 형광물질,Faded Fluorescent Material,
+Easy,+11,피묻은 검,Bloodstained Sword,20000,,0.75,160000,1,스위스산 철조각,Swiss Iron Scrap,
+Easy,+12,화염의 쌍검,Twin Blades of Flame,35000,,0.7,350000,1,스위스산 철조각,Swiss Iron Scrap,
+Easy,+13,불꽃 마검,Flame Demon Blade,55000,,0.7,1000000,2,불꽃마검 손잡이,Flame Demon Blade Handle,
+Easy,+14,마검 아포피스,Demon Blade Apophis,100000,,0.65,3000000,3,사악한 영혼,Wicked Soul,
+Easy,+15,데몬 배틀 엑스,Demon Battle Axe,180000,,0.6,7500000,4,도끼 가루,Axe Dust,
+Easy,+16,투명 검,Transparent Sword,300000,,0.6,14200000,7,투명 물질,Transparent Material,Drop shown as 0 in-game but actually drops — press Pick Up
+Easy,+17,날렵한 용검,Agile Dragon Sword,300000,,0.55,20000000,9,,,
+Easy,+18,샤이니 소드,Shiny Sword,500000,,0.5,30000000,10,,,
+Easy,+19,왕푸야샤,Wangpuyasha,800000,,0.5,47500000,12,,,Keep: used as material for +21
+Easy,+20,다색검,Multicolor Sword,1500000,,0.45,68300000,15,,,
+Easy,+21,템페스트 골드,Tempest Gold,,1x Wangpuyasha,0.4,101000000,17,,,Keep: used as material for +22
+Easy,+22,샤프 워커,Sharp Walker,,2x Tempest Gold,0.4,160000000,20,,,Keep: used as material for +24
+Easy,+23,피에로의 쌍검,Pierrot's Twin Blades,,8x Wicked Soul,0.4,230000000,22,,,Needs Wicked Souls — keep them
+Easy,+24,도룡도,Doryongdo (Dragon-Slaying Saber),,1x Sharp Walker,0.4,300000000,23,,,
+Easy,+25,안 강해보이는 검,Sword That Doesn't Look Strong,,15x Axe Dust,0.35,400000000,23,,,Needs Axe Dust — keep it
+Easy,+26,메두사,Medusa,5000000,,0.5,1800000000,Not usable,,,Bug: forced to Hard mode from +26 (Hard data shown)
+Easy,+27,오딧세이 소드,Odyssey Sword,,2x Transparent Material,0.4,2500000000,Not usable,,,Bug: forced to Hard mode; needs Transparent Material — keep it
+Easy,+28,모자이칼,Mosaic Blade (Mojaikal),0,,0.15,Not sellable,Not usable,,,Bug: forced to Hard mode; free to enhance; cannot be sold
+Easy,+29,화염에 달군 검,Flame-Heated Sword,,,,,,,,Final sword (no further data)

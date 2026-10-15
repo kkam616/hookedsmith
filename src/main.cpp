@@ -33,61 +33,75 @@
 #include "bn_sprite_items_icon_shop.h"
 #include "bn_sprite_items_icon_swords.h"
 #include "bn_sprite_items_icon_upgrade.h"
-#include "bn_sprite_items_sword.h"
+#include "bn_sprite_items_sword_00.h"
+#include "bn_sprite_items_sword_01.h"
+#include "bn_sprite_items_sword_02.h"
+#include "bn_sprite_items_sword_03.h"
+#include "bn_sprite_items_sword_04.h"
+#include "bn_sprite_items_sword_05.h"
+#include "bn_sprite_items_sword_06.h"
+#include "bn_sprite_items_sword_07.h"
+#include "bn_sprite_items_sword_08.h"
+#include "bn_sprite_items_sword_09.h"
+#include "bn_sprite_items_sword_10.h"
+#include "bn_sprite_items_sword_11.h"
+#include "bn_sprite_items_sword_12.h"
+#include "bn_sprite_items_sword_13.h"
+#include "bn_sprite_items_sword_14.h"
+#include "bn_sprite_items_sword_15.h"
+#include "bn_sprite_items_sword_16.h"
+#include "bn_sprite_items_sword_17.h"
+#include "bn_sprite_items_sword_18.h"
+#include "bn_sprite_items_sword_19.h"
+#include "bn_sprite_items_sword_20.h"
+#include "bn_sprite_items_sword_21.h"
+#include "bn_sprite_items_sword_22.h"
+#include "bn_sprite_items_sword_23.h"
+#include "bn_sprite_items_sword_24.h"
+#include "bn_sprite_items_sword_25.h"
+#include "bn_sprite_items_sword_26.h"
+#include "bn_sprite_items_sword_27.h"
+#include "bn_sprite_items_sword_28.h"
+#include "bn_sprite_items_sword_29.h"
 #include "economy.h"
 #include "hs_font.h"
 
 namespace
 {
 
-const char* sword_name(int level)
-{
-    if(level == 0)
-    {
-        return "녹슨 검";
-    }
-
-    if(level <= 5)
-    {
-        return "쓸만한 검";
-    }
-
-    if(level <= 10)
-    {
-        return "소문난 검";
-    }
-
-    if(level <= 15)
-    {
-        return "왕실의 검";
-    }
-
-    return "전설의 검";
-}
-
-void set_sword_tint(bn::sprite_palette_ptr& palette, int level)
-{
-    if(level == 0)
-    {
-        palette.set_fade(bn::color(18, 9, 3), bn::fixed(0.45));
-    }
-    else if(level <= 5)
-    {
-        palette.set_fade_intensity(0);
-    }
-    else if(level <= 10)
-    {
-        palette.set_fade(bn::color(12, 22, 31), bn::fixed(0.25));
-    }
-    else if(level <= 15)
-    {
-        palette.set_fade(bn::color(31, 25, 6), bn::fixed(0.35));
-    }
-    else
-    {
-        palette.set_fade(bn::color(24, 10, 31), bn::fixed(0.35));
-    }
-}
+// 검 그림 (tools/make_swords.py, +0~+29). 단계마다 따로 그려진 그림이고 팔레트도 따로다.
+const bn::sprite_item* const sword_items[hs::level_count] = {
+    &bn::sprite_items::sword_00,
+    &bn::sprite_items::sword_01,
+    &bn::sprite_items::sword_02,
+    &bn::sprite_items::sword_03,
+    &bn::sprite_items::sword_04,
+    &bn::sprite_items::sword_05,
+    &bn::sprite_items::sword_06,
+    &bn::sprite_items::sword_07,
+    &bn::sprite_items::sword_08,
+    &bn::sprite_items::sword_09,
+    &bn::sprite_items::sword_10,
+    &bn::sprite_items::sword_11,
+    &bn::sprite_items::sword_12,
+    &bn::sprite_items::sword_13,
+    &bn::sprite_items::sword_14,
+    &bn::sprite_items::sword_15,
+    &bn::sprite_items::sword_16,
+    &bn::sprite_items::sword_17,
+    &bn::sprite_items::sword_18,
+    &bn::sprite_items::sword_19,
+    &bn::sprite_items::sword_20,
+    &bn::sprite_items::sword_21,
+    &bn::sprite_items::sword_22,
+    &bn::sprite_items::sword_23,
+    &bn::sprite_items::sword_24,
+    &bn::sprite_items::sword_25,
+    &bn::sprite_items::sword_26,
+    &bn::sprite_items::sword_27,
+    &bn::sprite_items::sword_28,
+    &bn::sprite_items::sword_29,
+};
 
 bn::string<24> format_money(int value)
 {
@@ -139,7 +153,7 @@ bn::string<32> sword_label(int level)
     bn::string<32> result("+");
     result += bn::to_string<4>(level);
     result += " ";
-    result += sword_name(level);
+    result += hs::sword_names[level];
     return result;
 }
 
@@ -580,7 +594,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     // 모루는 z_order 1로 검 뒤에 둔다 (폼멜이 모루 윗면에 1px 겹친다)
     bn::sprite_ptr anvil = bn::sprite_items::anvil.create_sprite(0, anvil_y);
     anvil.set_z_order(1);
-    bn::sprite_ptr sword = bn::sprite_items::sword.create_sprite(0, sword_y);
+    int sword_level = eco.level();
+    bn::sprite_ptr sword = sword_items[sword_level]->create_sprite(0, sword_y);
     bn::sprite_palette_ptr sword_palette = sword.palette();
 
     phase current_phase = phase::IDLE;
@@ -591,12 +606,44 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     {
         const hs::level_row& row = eco.row();
 
-        bn::string<32> cost_line("강화비 ");
-        cost_line += eco.at_max_level() ? bn::string<24>("-") : format_money_short(row.cost_usd);
+        bn::string<32> cost_line;
+
+        if(eco.at_max_level())
+        {
+            cost_line = "강화비 -";
+        }
+        else if(row.cost_sword > 0 || row.cost_material != hs::material::NONE)
+        {
+            // 재료 강화: 자리가 좁아 이름의 공백을 빼고 "악령혼x12", "검+19x1"처럼 쓴다
+            if(row.cost_sword > 0)
+            {
+                cost_line = "검+";
+                cost_line += bn::to_string<4>(row.cost_sword);
+            }
+            else
+            {
+                for(const char* c = hs::material_names[int(row.cost_material)]; *c; ++c)
+                {
+                    if(*c != ' ')
+                    {
+                        cost_line.push_back(*c);
+                    }
+                }
+            }
+
+            cost_line += "x";
+            cost_line += bn::to_string<4>(row.cost_qty);
+        }
+        else
+        {
+            cost_line = "강화비 ";
+            cost_line += format_money_short(row.cost_usd);
+        }
+
         cost_text.set_text(cost_line);
 
         bn::string<32> price_line("판매가 ");
-        price_line += format_money_short(row.sell_usd);
+        price_line += row.sell_usd < 0 || eco.at_max_level() ? bn::string<24>("-") : format_money_short(row.sell_usd);
         price_text.set_text(price_line);
 
         name_line = sword_label(eco.level());
@@ -627,7 +674,15 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         set_button_enabled(sell_icon_palette, sell_badge, idle && eco.can_sell());
         set_button_enabled(upgrade_icon_palette, upgrade_badge,
                            idle && ! eco.at_max_level() && eco.can_afford_upgrade());
-        set_sword_tint(sword_palette, eco.level());
+
+        // 검 그림은 단계가 바뀔 때 새로 만든다. 망치질 중에는 결과를 아직 보여주지 않는다.
+        if(current_phase != phase::HAMMERING && eco.level() != sword_level)
+        {
+            sword_level = eco.level();
+            sword = sword_items[sword_level]->create_sprite(0, sword_y);
+            sword.set_z_order(0);
+            sword_palette = sword.palette();
+        }
     };
 
     // +0으로 돌아왔는데 강화비도 없으면 이웃이 돈을 준다
@@ -678,11 +733,15 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 if(eco.at_max_level())
                 {
-                    message_text("이미 전설이 되었다");
+                    message_text("더 올릴 수 없다");
                 }
-                else if(! eco.can_afford_upgrade())
+                else if(! eco.can_afford_money())
                 {
                     message_text("돈이 모자란다");
+                }
+                else if(! eco.can_afford_materials())
+                {
+                    message_text("재료가 모자란다");
                 }
                 else
                 {
@@ -1003,7 +1062,7 @@ void run_storage(hs::economy& eco, bool sword_rack)
 
     auto footer_hint = [&]()
     {
-        footer_text.set_text(sword_rack ? "A 꺼내기  B 돌아가기" : "B 돌아가기");
+        footer_text.set_text(sword_rack ? "A 꺼내기  R 보관  B 뒤로" : "B 돌아가기");
     };
 
     auto refresh = [&]()
@@ -1075,6 +1134,30 @@ void run_storage(hs::economy& eco, bool sword_rack)
         else if(count > 0 && bn::keypad::down_pressed())
         {
             selected = (selected + 1) % count;
+        }
+        else if(sword_rack && bn::keypad::r_pressed())
+        {
+            // 현재 검을 보관함에 넣는다 (재료로 쓸 +19, +21, +22 검을 모을 때)
+            bn::string<48> result_line;
+
+            if(eco.level() == 0)
+            {
+                result_line = "보관할 검이 없다";
+            }
+            else if(! eco.can_store_sword())
+            {
+                result_line = "검보관이 가득 찼다";
+            }
+            else
+            {
+                result_line = sword_label(eco.level());
+                result_line += " 보관";
+                eco.store_sword();
+            }
+
+            refresh();
+            footer_text.set_text(result_line);
+            notice = notice_frames;
         }
         else if(count > 0 && bn::keypad::a_pressed())
         {

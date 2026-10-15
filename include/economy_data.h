@@ -49,11 +49,49 @@ struct level_row
     int32_t sell_usd;       // 판매가 (0 = 판매 불가)
     int8_t protect_cost;    // 실패 시 방지권 장수 (0 이하 = 사용 불가)
     material fail_drop;     // 파괴 시 드랍 잡템
+    // 재료 강화(+21~): 돈 대신(또는 돈과 함께) 소모하는 재료. 잡템이면 cost_material, 보관한 검이면 cost_sword(단계).
+    material cost_material = material::NONE;
+    int8_t cost_sword = 0;
+    int8_t cost_qty = 0;
 };
 
-// 우리 게임은 +20 달성이 엔딩. +21~+28(재료 강화) 행은 스펙에만 두고 아직 넣지 않는다.
-constexpr int max_level = 20;
+// 원작 최종 단계 +29가 엔딩. +29는 더 올릴 수 없는 마지막 검이라 행에는 빈 값만 둔다.
+constexpr int max_level = 29;
 constexpr int level_count = max_level + 1;
+
+// 검 이름 (+0~+29). 원작 이름을 한글로 쓴다.
+constexpr const char* sword_names[level_count] = {
+    "낡은 단검",
+    "쓸만한 단검",
+    "견고한 단검",
+    "바이킹 소드",
+    "불타는 검",
+    "냉기의 소드",
+    "양날 검",
+    "심판자의 대검",
+    "마력의 검",
+    "타우 스워드",
+    "형광검",
+    "피묻은 검",
+    "화염의 쌍검",
+    "불꽃 마검",
+    "마검 아포피스",
+    "데몬 배틀 엑스",
+    "투명 검",
+    "날렵한 용검",
+    "샤이니 소드",
+    "왕푸야샤",
+    "다색검",
+    "템페스트 골드",
+    "샤프 워커",
+    "피에로의 쌍검",
+    "도룡도",
+    "안 강해보이는 검",
+    "메두사",
+    "오딧세이 소드",
+    "모자이칼",
+    "화염에 달군 검",
+};
 
 constexpr level_row hard_levels[level_count] = {
     {    5, 100,       0,  0, material::NONE },          // +0
@@ -77,6 +115,15 @@ constexpr level_row hard_levels[level_count] = {
     { 3000,  38,  720000, 10, material::NONE },
     { 4000,  35, 1200000, 12, material::NONE },
     { 6500,  33, 2400000, 15, material::NONE },          // +20
+    {    0,  30, 3000000, 17, material::NONE, material::NONE, 19, 1 },          // +21: 보관한 +19 검 1개
+    {    0,  27, 4000000, 20, material::NONE, material::NONE, 21, 2 },
+    {    0,  27, 5500000, 22, material::NONE, material::EVIL_SOUL, 0, 12 },
+    {    0,  25, 7500000, 23, material::NONE, material::NONE, 22, 1 },
+    {    0,  35, 4000000, 23, material::NONE, material::AXE_DUST, 0, 15 },      // +25
+    { 50000,  50, 18000000, -1, material::NONE },
+    {    0,  40, 25000000, -1, material::NONE, material::CLEAR_MATTER, 0, 2 },
+    {    0,  15,       -1, -1, material::NONE },                                // +28: 무료, 판매 불가
+    {    0,   0,        0, -1, material::NONE },                                // +29: 최종 (엔딩)
 };
 
 constexpr level_row easy_levels[level_count] = {
@@ -101,6 +148,15 @@ constexpr level_row easy_levels[level_count] = {
     {  5000,  50, 300000, 10, material::NONE },
     {  8000,  50, 475000, 12, material::NONE },
     { 15000,  45, 683000, 15, material::NONE },          // +20
+    {     0,  40, 1010000, 17, material::NONE, material::NONE, 19, 1 },         // +21
+    {     0,  40, 1600000, 20, material::NONE, material::NONE, 21, 2 },
+    {     0,  40, 2300000, 22, material::NONE, material::EVIL_SOUL, 0, 8 },
+    {     0,  40, 3000000, 23, material::NONE, material::NONE, 22, 1 },
+    {     0,  35, 4000000, 23, material::NONE, material::AXE_DUST, 0, 15 },     // +25
+    { 50000,  50, 18000000, -1, material::NONE },
+    {     0,  40, 25000000, -1, material::NONE, material::CLEAR_MATTER, 0, 2 },
+    {     0,  15,        -1, -1, material::NONE },                              // +28
+    {     0,   0,         0, -1, material::NONE },                              // +29
 };
 
 constexpr const level_row* level_table(difficulty diff)

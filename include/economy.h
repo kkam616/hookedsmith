@@ -54,7 +54,9 @@ public:
 
     // 강화: 비용을 내고 판정한다. 실패해도 단계는 그대로이고, 호출한 쪽이 protect() 또는 destroy()를 고른다.
     [[nodiscard]] bool at_max_level() const { return _level == max_level; }
-    [[nodiscard]] bool can_afford_upgrade() const { return _money >= row().cost_usd; }
+    [[nodiscard]] bool can_afford_money() const { return _money >= row().cost_usd; }
+    [[nodiscard]] bool can_afford_materials() const;
+    [[nodiscard]] bool can_afford_upgrade() const { return can_afford_money() && can_afford_materials(); }
     [[nodiscard]] bool upgrade(bn::seed_random& random);
 
     [[nodiscard]] bool protect_available() const { return row().protect_cost > 0; }
@@ -79,8 +81,15 @@ public:
     // 보관한 검을 꺼내 현재 검과 바꾼다. 현재 검이 +0이면 버리고 꺼낸다.
     void take_out_sword(int index);
 
+    // 현재 검을 보관함에 넣고 +0으로 돌아간다 (+0 검이나 가득 찬 보관함은 불가)
+    [[nodiscard]] bool can_store_sword() const { return _level > 0 && ! _stored_swords.full(); }
+    void store_sword();
+
+    // 보관한 검 중 해당 단계의 개수
+    [[nodiscard]] int stored_count(int level) const;
+
 #ifdef HS_DEBUG
-    // 테스트용: 돈 $100,000, 방지권 5장, 잡템 각 5개
+    // 테스트용: 돈 $100,000, 방지권 5장, 잡템 각 5개, 보관 검 +19 ×1·+21 ×2·+22 ×1
     void debug_grant();
 #endif
 
@@ -93,6 +102,7 @@ private:
     bn::vector<int8_t, max_stored_swords> _stored_swords;
 
     void _add_money(int32_t amount);
+    void _spend_materials();
 };
 
 }

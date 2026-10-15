@@ -16,11 +16,68 @@ economy::economy(difficulty diff) :
 {
 }
 
+bool economy::can_afford_materials() const
+{
+    const level_row& current = row();
+
+    if(current.cost_sword > 0)
+    {
+        return stored_count(current.cost_sword) >= current.cost_qty;
+    }
+
+    if(current.cost_material != material::NONE)
+    {
+        return _materials[int(current.cost_material)] >= current.cost_qty;
+    }
+
+    return true;
+}
+
+int economy::stored_count(int level) const
+{
+    int count = 0;
+
+    for(int8_t stored : _stored_swords)
+    {
+        if(stored == level)
+        {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+void economy::_spend_materials()
+{
+    const level_row& current = row();
+
+    if(current.cost_sword > 0)
+    {
+        for(int remaining = current.cost_qty; remaining > 0; --remaining)
+        {
+            for(int index = 0; index < _stored_swords.size(); ++index)
+            {
+                if(_stored_swords[index] == current.cost_sword)
+                {
+                    _stored_swords.erase(_stored_swords.begin() + index);
+                    break;
+                }
+            }
+        }
+    }
+    else if(current.cost_material != material::NONE)
+    {
+        _materials[int(current.cost_material)] -= current.cost_qty;
+    }
+}
+
 bool economy::upgrade(bn::seed_random& random)
 {
     BN_ASSERT(! at_max_level() && can_afford_upgrade(), "Invalid upgrade");
 
     _money -= row().cost_usd;
+    _spend_materials();
 
     if(random.get_int(100) < row().success_pct)
     {
@@ -164,11 +221,27 @@ void economy::take_out_sword(int index)
     _level = stored_level;
 }
 
+void economy::store_sword()
+{
+    BN_ASSERT(can_store_sword(), "Invalid store");
+
+    _stored_swords.push_back(int8_t(_level));
+    _level = 0;
+}
+
 #ifdef HS_DEBUG
 void economy::debug_grant()
 {
     _add_money(100000);
     _tickets += 5;
+
+    for(int8_t level : { 19, 21, 21, 22 })
+    {
+        if(! _stored_swords.full())
+        {
+            _stored_swords.push_back(level);
+        }
+    }
 
     for(int16_t& stock : _materials)
     {
