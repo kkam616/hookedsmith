@@ -1,6 +1,6 @@
 """강화 화면 아이콘 변환기.
 
-assets/graphics/icons/ui_icons_source.webp(큰 일러스트 시트)에서 아이콘 안쪽 그림만 잘라
+assets/graphics/icons/ui_icons_v2.webp(큰 일러스트 시트)에서 아이콘 안쪽 그림만 잘라
 (크기 - 4)px로 줄이고, 2px 테두리(원형 또는 나무 액자)를 직접 그려 투명 + 15색 4bpp 스프라이트로 만든다.
 원본 테두리까지 줄이면 작은 크기에서 테두리가 그림을 먹고 뭉개지기 때문.
 GBA 스프라이트는 32 또는 64 크기라, 32보다 큰 아이콘은 64x64 가운데에 그리고 나머지는 투명.
@@ -15,7 +15,7 @@ from PIL import Image, ImageEnhance
 from make_font import write_bmp_4bpp, write_if_changed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOURCE = os.path.join(ROOT, 'assets', 'graphics', 'icons', 'ui_icons_source.webp')
+SOURCE = os.path.join(ROOT, 'assets', 'graphics', 'icons', 'ui_icons_v2.webp')
 OUT_DIR = os.path.join(ROOT, 'graphics')
 
 BORDER = 2
@@ -27,14 +27,16 @@ CONTRAST = 1.25
 SATURATION = 1.2
 
 # 원본 시트에서 테두리 안쪽 그림 영역 (x0, y0, x1, y1), 테두리 모양, 화면에 그릴 크기(px).
-# 같은 보따리가 두 개라 위쪽 것만 쓴다. 오른쪽 아래 화구 옆의 워터마크는 범위 밖.
+# 원형은 원본 링이 가장자리에 번지지 않게 사각형보다 6px 안쪽에서 자른다.
+# 오른쪽 아래 화구 옆의 워터마크는 범위 밖.
 # 크기를 바꾸면 src/main.cpp의 아이콘 좌표와 키 글자 위치도 맞춘다.
 ICONS = {
-    'icon_upgrade': ((146, 125, 401, 377), 'circle', 40),   # 망치 → 강화
-    'icon_sell': ((507, 125, 760, 377), 'circle', 40),      # 지폐 → 판매
-    'icon_storage': ((866, 128, 1118, 376), 'square', 40),  # 보따리 → 창고
-    'icon_shop': ((505, 475, 759, 723), 'square', 40),      # 집 → 상점
-    'icon_craft': ((862, 473, 1122, 725), 'square', 40),    # 화구 → 조합소
+    'icon_upgrade': ((152, 131, 395, 371), 'circle', 40),   # 망치 → 강화 (A)
+    'icon_sell': ((513, 131, 754, 371), 'circle', 40),      # 지폐 → 판매 (B)
+    'icon_bag': ((868, 131, 1112, 371), 'circle', 40),      # 보따리 → 잡템 보관 (↓)
+    'icon_swords': ((152, 481, 395, 717), 'circle', 40),    # 검 걸이 → 검보관 (←)
+    'icon_shop': ((505, 475, 759, 723), 'square', 40),      # 집 → 상점 (L)
+    'icon_furnace': ((862, 473, 1122, 725), 'stone', 40),   # 화구 → 화구 (R)
 }
 
 
@@ -71,7 +73,7 @@ def compose(picture, shape, size):
                 if edge == 0:
                     color = OUTLINE
                 elif edge < BORDER:
-                    color = WOOD
+                    color = RING if shape == 'stone' else WOOD
                 else:
                     color = picture.getpixel((x - BORDER, y - BORDER))
 

@@ -12,7 +12,7 @@ namespace hs
 enum class difficulty : uint8_t
 {
     EASY,   // STORY
-    HARD,   // INFINITE
+    HARD,   // 타이틀의 HARD
 };
 
 enum class material : int8_t

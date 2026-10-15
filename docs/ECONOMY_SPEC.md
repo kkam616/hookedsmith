@@ -9,11 +9,11 @@
 3. **비용 종류**: `cost_usd > 0`이면 돈, `cost_material`이 있으면 돈 대신 재료(잡템 또는 보관한 검)를 `cost_material_qty`개 소모. `sword+N`은 보관함에 있는 +N 검. 둘 다 없으면 무료(+28). 테이블에 없는 +29가 원작 최종 단계.
 4. **판매**: 현재 검을 `sell_usd`에 팔고 `level 0`으로 복귀. 돈을 버는 유일한 수단. `sell_usd == 0`은 판매 버튼 없음(+0), `-1`은 판매 불가(+28).
 5. **깨짐 방지권**: 실패 시 `protect_cost`장을 내면 파괴 대신 현재 단계를 유지할지 플레이어에게 묻는다. `protect_cost <= 0`이면 방지권을 쓸 수 없고 그대로 파괴(`0` = 저단계라 대상 아님, `-1` = 고단계 사용 불가).
-6. **난이도**: `HARD` / `EASY` 두 테이블. 게임 시작 시 선택, 세이브에 저장.
+6. **모드**: `STORY` / `HARD` 두 테이블. 스토리 모드는 처음부터 선택 가능하고, 하드 모드는 잠겨 있다. 스토리 모드 클리어 후 세이브에 `story_cleared` 플래그가 저장되면 해금된다.
 7. **우리 게임 범위**: 엔딩은 **+20 달성**. +21 이후 행은 원작 참고용이며, 후반 재료 강화 구조를 +16~+20으로 압축할 예정(미정). 우선은 +0~+20만 구현.
 8. **검 이름**은 원작 것을 쓰지 않는다. 지금은 `"Sword +N"` 같은 자리표시자로 둔다.
 
-## 데이터: 하드모드
+## 데이터: 하드 모드 (HARD, 구 인피니트)
 
 ```csv
 level,cost_usd,cost_material,cost_material_qty,success_pct,sell_usd,protect_cost,fail_drop
@@ -48,7 +48,7 @@ level,cost_usd,cost_material,cost_material_qty,success_pct,sell_usd,protect_cost
 28,0,,0,15,-1,-1,
 ```
 
-## 데이터: 이지모드
+## 데이터: 스토리 모드 (STORY, 구 이지)
 
 ```csv
 level,cost_usd,cost_material,cost_material_qty,success_pct,sell_usd,protect_cost,fail_drop
@@ -83,12 +83,12 @@ level,cost_usd,cost_material,cost_material_qty,success_pct,sell_usd,protect_cost
 28,0,,0,15,-1,-1,
 ```
 
-(이지모드 +1 판매가는 원작 $1.5를 $2로 반올림함. 원작 버그로 하드 +25는 이지 값, 이지 +26 이후는 하드 값이 들어가 있음.)
+(스토리 모드 +1 판매가는 원작 $1.5를 $2로 반올림함. 원작 버그로 하드 +25는 스토리 값, 스토리 +26 이후는 하드 값이 들어가 있음.)
 
 ## 데이터: 상점
 
 ```csv
-item,hard_usd,easy_usd,effect
+item,hard_usd,story_usd,effect
 protect_x1,21000,10000,깨짐 방지권 1장
 protect_x3,60000,25000,깨짐 방지권 3장
 warp_9,8000,10000,일정 확률로 +9 검으로 시작
@@ -99,10 +99,10 @@ warp_15,100000,150000,일정 확률로 +15 검으로 시작
 
 워프 성공 확률은 원작에 명시되지 않음 → 미정(임시 50%).
 
-## 데이터: 조합소 (잡템 → 보상, 화폐와 무관)
+## 데이터: 화구 (잡템 → 보상, 화폐와 무관)
 
 ```csv
-input,hard_qty,easy_qty,output
+input,hard_qty,story_qty,output
 scrap_unknown,8,5,protect x1
 tau_bone,5,3,protect x1
 faded_glow,3,2,sword+13 x1
@@ -110,7 +110,7 @@ scrap_swiss,5,3,protect x2
 flame_hilt,2,2,sword+16 x1
 evil_soul,4,6,sword+19 x1
 axe_dust,6,6,protect x10
-clear_matter,4,3,protect x11(hard) / x9(easy)
+clear_matter,4,3,protect x11(hard) / x9(story)
 ```
 
 원작에는 `evil_soul 4개 → protect x4` 교환도 있으나 +19 검 교환과 재료가 겹쳐 제외(필요 시 추가).
@@ -120,5 +120,5 @@ clear_matter,4,3,protect x11(hard) / x9(easy)
 - 테이블은 `constexpr` 배열로 헤더 하나(`economy_data.h`)에 모으고, 로직(`economy.cpp`)과 분리.
 - 확률은 `bn::random`(또는 `bn::seed_random`)으로 `0~99` 뽑아 `< success_pct`면 성공. 시드는 타이틀 화면에서 키 입력 프레임 수로 섞을 것.
 - 금액 표시는 천 단위 콤마 + `$` 접두. 최장 `$25,000,000`(11자)이 240px 화면에 들어가는지 확인.
-- 세이브(SRAM)에 들어갈 값: 난이도, 소지금, 현재 단계, 방지권 수, 잡템 수량, 보관한 검 목록.
-- 실행 예시 요청: "economy_data.h를 이 스펙의 하드/이지 테이블로 만들고, 강화·판매·방지권 로직과 단위 테스트용 디버그 화면을 추가해줘."
+- 세이브(SRAM)에 들어갈 값: 모드, story_cleared 플래그, 소지금, 현재 단계, 방지권 수, 잡템 수량, 보관한 검 목록.
+- 실행 예시 요청: "economy_data.h를 이 스펙의 하드/스토리 테이블로 만들고, 강화·판매·방지권 로직과 단위 테스트용 디버그 화면을 추가해줘."

@@ -4,6 +4,7 @@
 기본 루프는 플래시 게임 「검 강화하기」를 모티브로 한다(강화 비용·확률, 실패 시 파괴, 판매가 주 수입, 깨짐 방지권, 잡템·조합소).
 기획 문서: https://claude.ai/code/artifact/73958658-7f11-4c5d-9b9d-c0411b66512b
 경제 스펙: `docs/ECONOMY_SPEC.md`
+기획 메모(용어·스토리·미정 사항): `docs/DESIGN_NOTES.md`
 저장소: https://github.com/kkam616/hookedsmith (`main`)
 
 ## 작업 방식 (사용자 선호)
@@ -31,7 +32,7 @@ make -j8
 - `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡혀야 한다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
-- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. INFINITE가 열리고 강화 화면에서 SELECT로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
+- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 SELECT로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
 - cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
 
 ### mGBA
@@ -40,9 +41,9 @@ make -j8
 - 화면 확인(computer-use): 모니터가 두 대(BenQ GW2780 가로, BenQ GL2580 세로)라 창이 어느 쪽에 뜰지 모른다. 실행 후 PowerShell `(New-Object -ComObject WScript.Shell).AppActivate(<mGBA PID>)`로 앞으로 가져온 뒤 `hold_key`(0.1초)로 입력한다. 짧은 `key`나 반복 입력은 게임이 못 받는다. `open_application`은 빈 mGBA를 새로 띄우니 쓰지 않는다.
 
 ## 현재 상태 (마지막 커밋 a73e4e0)
-흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 → 강화 화면 ⇄ 상점(R) / 창고(L) / 조합소(↓)
+흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 → 강화 화면 ⇄ 상점(L) / 화구(R) / 검보관(←) / 잡템 보관(↓)
 - STORY = EASY: 오프닝 컷씬 후 강화 화면
-- INFINITE = HARD: 컷씬 없음. STORY 클리어 후 해금 예정이라 지금은 회색·선택 불가 (`main()`의 `infinite_unlocked`)
+- HARD: 컷씬 없음. STORY 클리어 후 해금 예정이라 지금은 회색·선택 불가 (`main()`의 `hard_unlocked`)
 - OPTION: "COMING SOON"만 뜬다
 
 ### 타이틀·스플래시
@@ -56,40 +57,40 @@ make -j8
 - 대사는 자동 줄바꿈. 첫 줄 228px, 둘째 줄 212px(▼ 자리)를 넘으면 assert.
 
 ### 강화 화면 배치 (240x160)
-- 가운데: 검(`tools/make_sword.py`, 그림 53줄)이 모루(`tools/make_anvil.py`, 원본 `assets/graphics/anvil/anvil_source.webp`에서 다각형으로 잘라 60x34) 위에 선다. 바탕은 단색 (4,3,3).
-- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_source.webp`): 창고(L)·상점(R) 위쪽 양 모서리, 판매(B)·강화(A) 오른쪽 아래 대각선, 조합(↓) 아래 가운데. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 아이콘이 회색.
-- 왼쪽 정보 줄(x 4부터): 강화비·판매가·이름·성공률·방지권·돈. 이름·성공률 줄은 모루 왼쪽 끝(x 90) 앞에서 끝나야 하고(최대 84px), 강화비·판매가 줄은 칼날(x 117) 앞에서 끝나야 한다.
-- 위쪽 메시지 줄은 창고·상점 아이콘 사이라 폭 150px 이하.
-- 방지권 질문은 메시지 줄에 "방지권 N장 쓸까?", 이름·성공률 자리에 "A 쓴다" / "B 안 쓴다".
+- 배경: 대장간 그림(`assets/graphics/forge/forge_bg_source.webp` → `tools/make_forge_bg.py`, 수동 실행, 8bpp 64색). 가운데 검·모루는 지우고 스프라이트(검 `tools/make_sword.py`, 모루 `tools/make_anvil.py`)를 올린다. 글자 자리(위·아래 가운데)는 배경을 어둡게 눌러 둔다.
+- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_v2.webp`): 상점(L) 왼쪽 위, 화구(R) 오른쪽 위, 검보관(←)·잡템 보관(↓) 왼쪽, 판매(B)·강화(A) 오른쪽. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 회색.
+- 위쪽 가운데: 이름(메시지가 90프레임 동안 이 자리를 대신 차지) + 성공률. 방지권 질문은 이름 자리에 질문, 성공률 자리에 "A 쓴다  B 안 쓴다".
+- 아래 가운데: 강화비·판매가 (가운데 정렬, 잡템 아이콘과 판매 아이콘 사이 약 72px). 1,000 이상은 `$1.3K`/`$2.4M`처럼 줄여 표시(`format_money_short`). 왼쪽 아래 방지권, 오른쪽 아래 돈.
+- 스프라이트 타일(1024개)이 빠듯하다. 화면을 오갈 때 `main()`에서 `bn::core::update()`를 한 번 불러 이전 화면의 타일을 반환시킨다 (안 하면 "Sprite tiles allocate failed").
 
 ### 경제 (`docs/ECONOMY_SPEC.md`)
 - 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`.
 - +0~+20만 구현 (+21 이후 재료 강화 행은 아직 안 넣음). 금액은 `$` 표시.
 - 실패 = 파괴 + 잡템 1~3개. 방지권이 충분하면 쓸지 묻고, 쓰면 단계 유지.
-- 상점(R): 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%).
-- 창고(L) = 인벤토리: 잡템 탭(보기만), 보관한 검 탭(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림). L/R로 탭 전환.
-- 조합소(↓): 잡템 → 방지권 / 검(창고로).
+- 상점(L): 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%).
+- 검보관(←): 보관한 검 목록(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림). 잡템 보관(↓): 잡템 목록(보기만).
+- 화구(R, 옛 조합소): 잡템 → 방지권 / 검(창고로).
 - 스펙에 없어 임시로 정한 값: 시작 $100, +0인데 강화비가 없으면 이웃이 $50, 보관함 8칸, 잡템 이름(4글자 이하), 워프 확률 50%.
 
 ### 코드·그래픽 규칙
 - 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다 (한글 13px 폭).
 - 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
 - `bn::string<N>`은 바이트 수 기준 (한글 1자 = 3바이트). 넘치면 게임이 멈추니 넉넉히 잡는다.
-- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_sword.py`. 원본을 바꾸면 직접 실행.
+- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_sword.py`, `make_forge_bg.py`. 원본을 바꾸면 직접 실행.
 - 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색(예: 모루의 밝은 파란색)을 다른 색과 합쳐 버린다.
 
 ## 정해 둔 것 / 미정
-- 세이브는 +20 엔딩을 먼저 만든 뒤, 진행 상황 + INFINITE 해금 플래그를 같이 만들기로 했다.
+- 세이브는 +20 엔딩을 먼저 만든 뒤, 진행 상황 + HARD 해금 플래그를 같이 만들기로 했다.
 - 영어 지원(OPTION에서 Language 전환 예정) 검토 결과: 가능하지만 준비가 필요하다.
   - 한글 문자열이 코드에 박혀 있고(81개+), 한국어 어순으로 조각을 이어 붙이는 문장이 있다 → 언어별 문자열 표 + 문장 틀로 바꿔야 한다.
   - 영어가 더 길어서 넘치는 곳: 아이콘 사이 메시지 줄, 왼쪽 정보 줄, 창고·조합소 잡템 이름 칸.
   - 언어 설정도 세이브에 저장해야 한다.
   - 추천: 화면이 더 늘기 전에 문자열 표부터 만들어 두기.
-- STORY/INFINITE 난이도 차이는 지금 이지/하드 테이블 차이뿐이다.
+- STORY/HARD 난이도 차이는 지금 이지/하드 테이블 차이뿐이다.
 
-## 다음 작업
+## 다음 작업 (칼 이미지 교체 포함)
 1. +20 엔딩
-2. 세이브 (난이도, 돈, 단계, 방지권, 잡템, 보관 검, INFINITE 해금, 나중에 언어)
+2. 세이브 (난이도, 돈, 단계, 방지권, 잡템, 보관 검, HARD 해금, 나중에 언어)
 3. 문자열 표 (영어 지원 준비)
 4. +16~+20 재료 강화 구조 (스펙 미정)
 5. OPTION 항목 (Language 등)
