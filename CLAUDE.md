@@ -34,18 +34,23 @@ make -j8
 - mGBA 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace
 
 ## 현재 상태
-- 흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 메뉴 → 강화 화면 ⇄ 상점(R) / 창고(L). STORY = EASY(오프닝 컷씬부터), INFINITE = HARD(컷씬 없음, STORY 클리어 후 해금).
+- 흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 메뉴 → 강화 화면 ⇄ 상점(R) / 창고(L) / 조합소(↓). STORY = EASY(오프닝 컷씬부터), INFINITE = HARD(컷씬 없음, STORY 클리어 후 해금).
 - 오프닝 컷씬: 원본 그림은 `assets/graphics/cutscene/*.bmp`(240x112, 16색 이하, PNG여도 됨). 빌드 때 `tools/make_cutscenes.py`(EXTTOOL)가 `graphics/`에 256x256 4bpp BMP + json과 텍스트 박스 배경을 만든다. 씬 목록과 대사는 `src/main.cpp`의 `opening_scenes`. 대사는 자동 줄바꿈되고 2줄(228px)을 넘으면 assert.
+- 강화 화면 아이콘: 원본 시트 `assets/graphics/icons/ui_icons_source.webp` → `python -B tools/make_icons.py` → `graphics/icon_{upgrade,sell,storage,shop,craft}.bmp` (40px를 64x64 스프라이트 가운데에, 투명+15색). 원본 테두리는 잘라내고 2px 테두리를 새로 그린다. 빌드 때 자동으로 돌지 않으니 원본을 바꾸면 직접 실행.
 - 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
 - 타이틀 메뉴: STORY(이지) / INFINITE(하드, 스토리 클리어 시 해금 예정, 지금은 회색·선택 불가) / OPTION(준비 중)
 - 경제: `docs/ECONOMY_SPEC.md` 기준. 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`
   - +0~+20만 구현 (+21 이후 재료 강화 행은 아직 안 넣음). 실패 = 파괴 + 잡템 1~3개, 방지권이 있으면 쓸지 묻는다
   - 상점: 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%)
-  - 창고: 조합소 탭(잡템 → 방지권/보관 검), 보관한 검 탭(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림)
+  - 창고(L) = 인벤토리: 잡템 탭(강화 실패로 얻은 아이템, 보기만), 보관한 검 탭(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림). L/R로 탭 전환
+  - 조합소(↓): 잡템 → 방지권 / 검(창고로)
+- 강화 화면 버튼은 아이콘(박스 배경 없음): 모두 40px. 창고(L)·상점(R) 위쪽 양 모서리, 판매(B)·강화(A) 오른쪽 아래 대각선, 조합(↓) 아래 가운데. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 아이콘이 회색이 된다.
   - 스펙에 없어 임시로 정한 값: 시작 $100, +0인데 강화비가 없으면 이웃이 $50, 보관함 8칸, 잡템 이름
 - 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다
 - 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것
-- 강화 화면 위쪽 메시지 줄은 두 박스 사이라 폭 126px 이하로 쓴다
+- 강화 화면 위쪽 메시지 줄은 창고·상점 아이콘 사이라 폭 150px 이하로 쓴다
+- 강화 화면 가운데: 검(`tools/make_sword.py`, 그림 53줄)이 모루(`tools/make_anvil.py`, 원본 `assets/graphics/anvil/anvil_source.webp`에서 다각형으로 잘라 60x34) 위에 선다. 바탕은 단색.
+- 왼쪽 정보 줄(x 4부터): 강화비·판매가·이름·성공률·방지권·돈. 이름·성공률 줄은 모루 왼쪽 끝(x 90) 앞에서 끝나야 하고(최대 84px), 강화비·판매가 줄은 칼날(x 117) 앞에서 끝나야 한다.
 
 ## 다음 작업
 1. 세이브 (난이도, 돈, 단계, 방지권, 잡템, 보관 검, INFINITE 해금)
