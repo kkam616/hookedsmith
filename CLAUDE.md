@@ -32,16 +32,16 @@ make -j8
 - `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡혀야 한다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
-- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 SELECT로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
+- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 START로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
 - cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
 
 ### mGBA
-- 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace
+- 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace (config.ini의 keySelect는 지금 32=Space로 되어 있으니 안 먹으면 Space)
 - RTC: mGBA는 홈브류의 시계를 자동으로 켜지 않는다. `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`이 들어 있다 (섹션 이름은 `gba.override.`가 아니라 `override.`). mGBA를 닫은 상태에서만 고칠 것(종료할 때 덮어씀). 없으면 타이틀이 항상 낮.
 - 화면 확인(computer-use): 모니터가 두 대(BenQ GW2780 가로, BenQ GL2580 세로)라 창이 어느 쪽에 뜰지 모른다. 실행 후 PowerShell `(New-Object -ComObject WScript.Shell).AppActivate(<mGBA PID>)`로 앞으로 가져온 뒤 `hold_key`(0.1초)로 입력한다. 짧은 `key`나 반복 입력은 게임이 못 받는다. `open_application`은 빈 mGBA를 새로 띄우니 쓰지 않는다.
 
 ## 현재 상태 (마지막 커밋 a73e4e0)
-흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 → 강화 화면 ⇄ 상점(L) / 화구(R) / 검보관(←) / 잡템 보관(↓)
+흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 → 강화 화면 ⇄ 상점(L) / 화구(R) / 창고(←) / 잡화(↓)
 - STORY = EASY: 오프닝 컷씬 후 강화 화면
 - HARD: 컷씬 없음. STORY 클리어 후 해금 예정이라 지금은 회색·선택 불가 (`main()`의 `hard_unlocked`)
 - OPTION: "COMING SOON"만 뜬다
@@ -58,7 +58,7 @@ make -j8
 
 ### 강화 화면 배치 (240x160)
 - 배경: 대장간 그림(`assets/graphics/forge/forge_bg_source.webp` → `tools/make_forge_bg.py`, 수동 실행, 8bpp 64색). 가운데 검·모루는 지우고 스프라이트(검은 단계마다 한 장씩 `assets/graphics/swords/sword_NN_name.png` → `tools/make_swords.py`가 빌드 때 `graphics/sword_NN.bmp`로 변환, 모루 `tools/make_anvil.py`)를 올린다. 검 그림 규격: 32x64, 4bpp 인덱스, 0번 투명, 그림은 y 0~52·x 7~24. 글자 자리(위·아래 가운데)는 배경을 어둡게 눌러 둔다.
-- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_v2.webp`): 상점(L) 왼쪽 위, 화구(R) 오른쪽 위, 검보관(←)·잡템 보관(↓) 왼쪽, 판매(B)·강화(A) 오른쪽. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 회색.
+- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_v2.webp`): 상점(L) 왼쪽 위, 화구(R) 오른쪽 위, 창고(←)·잡화(↓) 왼쪽, 판매(B)·강화(A) 오른쪽. 키 글자는 아이콘 오른쪽 아래 구석. 판매·강화는 못 쓸 때 회색.
 - 위쪽 가운데: 이름(메시지가 90프레임 동안 이 자리를 대신 차지) + 성공률. 방지권 질문은 이름 자리에 질문, 성공률 자리에 "A 쓴다  B 안 쓴다".
 - 아래 가운데: 강화비·판매가 (가운데 정렬, 잡템 아이콘과 판매 아이콘 사이 약 72px). 1,000 이상은 `$1.3K`/`$2.4M`처럼 줄여 표시(`format_money_short`). 왼쪽 아래 방지권, 오른쪽 아래 돈.
 - 스프라이트 타일(1024개)이 빠듯하다. 화면을 오갈 때 `main()`에서 `bn::core::update()`를 한 번 불러 이전 화면의 타일을 반환시킨다 (안 하면 "Sprite tiles allocate failed").
@@ -68,7 +68,8 @@ make -j8
 - +0~+29 구현 (+29가 최종 검 = 엔딩, 엔딩 연출은 아직). +21~+27은 재료 강화: 보관한 검(+19·+21·+22) 또는 잡템을 소모(`level_row`의 `cost_sword`/`cost_material`/`cost_qty`). 검 이름은 `include/economy_data.h`의 `sword_names`(원작 한글 이름). 금액은 `$` 표시.
 - 실패 = 파괴 + 잡템 1~3개. 방지권이 충분하면 쓸지 묻고, 쓰면 단계 유지.
 - 상점(L): 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%).
-- 검보관(←): 보관한 검 목록(꺼내면 현재 검과 맞바꿈, 현재가 +0이면 버림). 잡템 보관(↓): 잡템 목록(보기만).
+- 창고(←): 보관한 검 목록(A 꺼내기 = 현재 검과 맞바꿈, 현재가 +0이면 버림 / R 현재 검 보관). 잡화(↓): 잡템 목록(보기만).
+- SELECT 도움말(강화 화면): 배경·검·모루 흑백, 아이콘 컬러 + 아이콘 가운데에 이름, 버튼을 누르고 있는 동안만 위쪽 가운데 세 줄에 설명(검은 숨김). 설명 문구는 `src/main.cpp`의 `help_texts` (원하는 문구로 수정).
 - 화구(R, 옛 조합소): 잡템 → 방지권 / 검(창고로).
 - 스펙에 없어 임시로 정한 값: 시작 $100, +0인데 강화비가 없으면 이웃이 $50, 보관함 8칸, 잡템 이름(4글자 이하), 워프 확률 50%.
 

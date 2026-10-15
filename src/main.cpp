@@ -1,6 +1,7 @@
 #include "bn_core.h"
 #include "bn_array.h"
 #include "bn_assert.h"
+#include "bn_bg_palette_ptr.h"
 #include "bn_bg_palettes.h"
 #include "bn_sprite_palettes.h"
 #include "bn_color.h"
@@ -172,13 +173,30 @@ public:
     {
         _sprites.clear();
         _generator.generate(_x, _y, text, _sprites);
+        apply_visible();
+    }
+
+    // 숨겨 둔 동안 set_text를 불러도 보이지 않는다
+    void set_visible(bool visible)
+    {
+        _visible = visible;
+        apply_visible();
     }
 
 private:
     bn::sprite_text_generator& _generator;
     int _x;
     int _y;
+    bool _visible = true;
     bn::vector<bn::sprite_ptr, 16> _sprites;
+
+    void apply_visible()
+    {
+        for(bn::sprite_ptr& sprite : _sprites)
+        {
+            sprite.set_visible(_visible);
+        }
+    }
 };
 
 // 글자 색을 따로 바꾸기 위한 폰트 팔레트 복사본.
@@ -462,8 +480,8 @@ enum class forge_exit
 {
     SHOP,       // L
     FURNACE,    // R (화구: 잡템 조합)
-    SWORDS,     // ← (검보관)
-    BAG,        // ↓ (잡템 보관)
+    SWORDS,     // ← (창고)
+    BAG,        // ↓ (잡화)
 };
 
 constexpr int hammer_frames = 40;
@@ -474,12 +492,25 @@ constexpr int sword_y = -8;
 constexpr int anvil_y = 44;
 
 // 글자 자리 (Butano 좌표, 화면 가운데가 0,0).
-// 이름·성공률(·메시지)은 위쪽 가운데, 강화비·판매가는 아래 가운데(잡템 보관 아이콘과 판매 아이콘 사이, 폭 약 72px).
+// 이름·성공률(·메시지)은 위쪽 가운데, 강화비·판매가는 아래 가운데(잡화 아이콘과 판매 아이콘 사이, 폭 약 72px).
 constexpr int name_y = -66;
 constexpr int chance_y = -50;
 constexpr int cost_y = 54;
 constexpr int price_y = 66;
 constexpr int message_frames = 90;      // 메시지가 이름 자리를 차지하는 시간
+
+// SELECT 도움말: 버튼을 누르고 있는 동안 위쪽 가운데 세 줄에 설명을 보여준다 (줄 폭 150px 이하, 한글 11자 안팎).
+// 순서: 강화(A), 판매(B), 상점(L), 화구(R), 창고(←), 잡화(↓).
+constexpr int help_count = 6;
+constexpr const char* help_labels[help_count] = { "강화", "판매", "상점", "화구", "창고", "잡화" };
+constexpr const char* help_texts[help_count][3] = {
+    { "무기를 강화해 더", "강력한 검에", "도전하자." },
+    { "강화 중인 무기를", "판매하여 돈을", "벌자." },
+    { "돈을 사용해 강화에", "필요한 아이템을", "구매하자." },
+    { "재료를 모아 특별한", "무기와 아이템을", "제작하자." },
+    { "보유한 무기와", "아이템을 보관하고", "관리하자." },
+    { "강화 실패로 얻은", "재료를 모으고", "관리하자." },
+};
 
 forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string_view& first_message)
 {
@@ -520,7 +551,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         return icon;
     };
 
-    // 키 글자는 아이콘 아래 구석: 오른쪽 열(화구·강화·판매)은 오른쪽, 왼쪽 열(상점·검보관·잡템 보관)은 왼쪽
+    // 키 글자는 아이콘 아래 구석: 오른쪽 열(화구·강화·판매)은 오른쪽, 왼쪽 열(상점·창고·잡화)은 왼쪽
     auto generate_badge = [&](const button_layout& layout, const char* key, bn::ivector<bn::sprite_ptr>& sprites)
     {
         int half = layout.size / 2;
@@ -601,6 +632,20 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     phase current_phase = phase::IDLE;
     int phase_frame = 0;
     bool upgrade_succeeded = false;     // 판정은 바로 하고, 결과는 망치질이 끝난 뒤 보여준다
+
+    // SELECT 도움말: 배경·검·모루는 흑백, 아이콘은 컬러로 두고 아이콘 가운데에 이름을 쓴다.
+    // 버튼을 누르고 있는 동안만 위쪽 가운데에 설명이 나온다.
+    bool help_mode = false;
+    int help_key = -1;
+    bn::bg_palette_ptr background_palette = background.palette();
+    bn::sprite_palette_ptr anvil_palette = anvil.palette();
+    text_line help_line_1(center_generator, 0, name_y);
+    text_line help_line_2(center_generator, 0, chance_y);
+    text_line help_line_3(center_generator, 0, chance_y + 16);
+    bn::vector<bn::sprite_ptr, 16> help_label_sprites;
+    const button_layout* help_buttons[help_count] = {
+        &upgrade_button, &sell_button, &shop_button, &furnace_button, &swords_button, &bag_button
+    };
 
     auto refresh_status = [&]()
     {
@@ -685,6 +730,45 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
     };
 
+    auto set_help = [&](bool on)
+    {
+        help_mode = on;
+        help_key = -1;
+        help_line_1.set_text("");
+        help_line_2.set_text("");
+        help_line_3.set_text("");
+        help_label_sprites.clear();
+
+        bn::fixed gray = on ? 1 : 0;
+        background_palette.set_grayscale_intensity(gray);
+        anvil_palette.set_grayscale_intensity(gray);
+        sword_palette.set_grayscale_intensity(gray);
+        sword.set_visible(! on);        // 설명 셋째 줄이 검 끝과 겹치므로 도움말 동안은 검을 숨긴다
+
+        name_text.set_visible(! on);
+        chance_text.set_visible(! on);
+        cost_text.set_visible(! on);
+        price_text.set_visible(! on);
+        money_text.set_visible(! on);
+
+        if(on)
+        {
+            for(int index = 0; index < help_count; ++index)
+            {
+                center_generator.generate(help_buttons[index]->x, help_buttons[index]->y, help_labels[index],
+                                          help_label_sprites);
+            }
+
+            // 판매·강화는 못 쓰는 상태여도 도움말에서는 컬러로 보여준다
+            set_button_enabled(sell_icon_palette, sell_badge, true);
+            set_button_enabled(upgrade_icon_palette, upgrade_badge, true);
+        }
+        else
+        {
+            refresh_status();
+        }
+    };
+
     // +0으로 돌아왔는데 강화비도 없으면 이웃이 돈을 준다
     auto check_loan = [&]()
     {
@@ -729,7 +813,24 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         {
 
         case phase::IDLE:
-            if(bn::keypad::a_pressed())
+            if(bn::keypad::select_pressed())
+            {
+                set_help(! help_mode);
+            }
+            else if(help_mode)
+            {
+                int key = bn::keypad::a_held() ? 0 : bn::keypad::b_held() ? 1 : bn::keypad::l_held() ? 2 :
+                          bn::keypad::r_held() ? 3 : bn::keypad::left_held() ? 4 : bn::keypad::down_held() ? 5 : -1;
+
+                if(key != help_key)
+                {
+                    help_key = key;
+                    help_line_1.set_text(key < 0 ? "" : help_texts[key][0]);
+                    help_line_2.set_text(key < 0 ? "" : help_texts[key][1]);
+                    help_line_3.set_text(key < 0 ? "" : help_texts[key][2]);
+                }
+            }
+            else if(bn::keypad::a_pressed())
             {
                 if(eco.at_max_level())
                 {
@@ -756,7 +857,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 if(! eco.can_sell())
                 {
-                    message_text("녹슨 검은 안 팔린다");
+                    message_text("이 검은 안 팔린다");
                 }
                 else
                 {
@@ -788,7 +889,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 return forge_exit::BAG;
             }
 #ifdef HS_DEBUG
-            else if(bn::keypad::select_pressed())
+            else if(bn::keypad::start_pressed())
             {
                 eco.debug_grant();
                 message_text("DEBUG +$100,000");
@@ -1028,7 +1129,7 @@ void run_shop(hs::economy& eco, bn::seed_random& random)
     fade_screen(false);
 }
 
-// ─── 검보관 (←) / 잡템 보관 (↓) ──────────────────────────────────────
+// ─── 창고 (←) / 잡화 (↓) ──────────────────────────────────────
 
 constexpr int list_top_y = -52;
 constexpr int list_step_y = 14;
@@ -1077,7 +1178,7 @@ void run_storage(hs::economy& eco, bool sword_rack)
 
         if(sword_rack)
         {
-            bn::string<48> title_line("검보관  지금 +");
+            bn::string<48> title_line("창고  지금 +");
             title_line += bn::to_string<4>(eco.level());
             title_text.set_text(title_line);
 
@@ -1089,7 +1190,7 @@ void run_storage(hs::economy& eco, bool sword_rack)
         }
         else
         {
-            title_text.set_text("잡템 보관");
+            title_text.set_text("잡화");
 
             for(int index = 0; index < hs::material_count; ++index)
             {
@@ -1146,7 +1247,7 @@ void run_storage(hs::economy& eco, bool sword_rack)
             }
             else if(! eco.can_store_sword())
             {
-                result_line = "검보관이 가득 찼다";
+                result_line = "창고가 가득 찼다";
             }
             else
             {
@@ -1182,7 +1283,7 @@ void run_storage(hs::economy& eco, bool sword_rack)
     fade_screen(false);
 }
 
-// ─── 화구 (R): 잡템 → 방지권 / 검(검보관으로) ───────────────────────
+// ─── 화구 (R): 잡템 → 방지권 / 검(창고로) ───────────────────────
 
 void run_crafting(hs::economy& eco)
 {
@@ -1274,7 +1375,7 @@ void run_crafting(hs::economy& eco)
             {
 
             case hs::craft_result::OK:
-                result_line = recipe.output == hs::craft_output::SWORD ? "조합 완료! 검은 검보관으로" : "조합 완료!";
+                result_line = recipe.output == hs::craft_output::SWORD ? "조합 완료! 검은 창고로" : "조합 완료!";
                 break;
 
             case hs::craft_result::NOT_ENOUGH_MATERIAL:
@@ -1282,7 +1383,7 @@ void run_crafting(hs::economy& eco)
                 break;
 
             case hs::craft_result::STORAGE_FULL:
-                result_line = "검보관이 가득 찼다";
+                result_line = "창고가 가득 찼다";
                 break;
 
             default:
@@ -1492,7 +1593,7 @@ int main()
 
     hs::economy eco(choice == title_choice::STORY ? hs::difficulty::EASY : hs::difficulty::HARD);
     bn::seed_random random(seed);
-    bn::string_view message = "+20까지 강화하자";
+    bn::string_view message = "+29까지 강화하자";
 
     while(true)
     {
