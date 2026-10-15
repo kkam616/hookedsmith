@@ -95,7 +95,7 @@ public:
 
 private:
     difficulty _diff;
-    int32_t _money = start_money;
+    int32_t _money = 0;
     int _level = 0;
     int _tickets = 0;
     bn::array<int16_t, material_count> _materials = {};

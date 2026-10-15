@@ -12,7 +12,8 @@ namespace
 }
 
 economy::economy(difficulty diff) :
-    _diff(diff)
+    _diff(diff),
+    _money(diff == difficulty::HARD ? start_money_hard : start_money_easy)
 {
 }
 
