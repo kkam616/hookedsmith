@@ -47,7 +47,9 @@ make -j8
 - OPTION: "COMING SOON"만 뜬다
 
 ### 타이틀·스플래시
+- 타이틀 메뉴: 아이콘 한 줄(가운데 HARD, 양옆 STORY·OPTION, 이름은 아이콘 아래). 아이콘은 `assets/graphics/title/title_menu_icons.webp` → `tools/make_title_icons.py`(수동 실행, 32px). ←/→로 고르고 A·START로 결정. 고른 것만 밝고 위아래로 흔들림. 잠긴 HARD는 흑백이고 고를 수는 있지만 누르면 "HARD - LOCKED".
 - 타이틀 음악: `assets/audio/title_chiptune.wav`(8bit 모노, 18157Hz) → `tools/make_music.py`가 빌드 때 `audio/title_chiptune.xm`(샘플 전체 forward loop)으로 변환. 타이틀 시작 때 `bn::music_items::title_chiptune.play(1)`, 메뉴를 고르면 페이드와 함께 볼륨을 줄이고 `bn::music::stop()`. wav를 `dmg_audio/`에 넣으면 안 됨(그 폴더는 DMG 사운드용). 곡을 더 넣을 땐 `assets/audio/`에 wav를 두면 같은 방식으로 변환된다. 원곡이 있다면 배포 전 사용 허가 확인.
+- 컷씬 음악: `assets/audio/story_chiptune_sad.wav`(같은 방식으로 XM 변환). 오프닝 컷씬이 시작할 때 재생해 반복하고, 마지막 장면의 페이드 아웃과 함께 끈다(HARD는 컷씬이 없어 음악 없음).
 - 타이틀 그림은 RTC 시각으로 낮(06~14)/노을(14~22)/밤(22~06). 시계가 없으면 낮.
 - 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것 (원본 6색).
 - 난수 시드는 타이틀에서 메뉴를 고른 프레임 수.
@@ -67,7 +69,7 @@ make -j8
 ### 경제 (`docs/ECONOMY_SPEC.md`)
 - 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`.
 - +0~+29 구현 (+29가 최종 검 = 엔딩, 엔딩 연출은 아직). +21~+27은 재료 강화: 보관한 검(+19·+21·+22) 또는 잡템을 소모(`level_row`의 `cost_sword`/`cost_material`/`cost_qty`). 검 이름은 `include/economy_data.h`의 `sword_names`(원작 한글 이름). 금액은 `$` 표시.
-- 실패 = 파괴 + 잡템 1~3개. 방지권이 충분하면 쓸지 묻고, 쓰면 단계 유지.
+- 실패 = 파괴 + 잡템 0~5개(확률 10/25/30/20/10/5%, `drop_count_pct`). 방지권이 충분하면 쓸지 묻고, 쓰면 단계 유지.
 - 상점(L): 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%).
 - 창고(←): 보관한 검 목록(A 꺼내기 = 현재 검과 맞바꿈, 현재가 +0이면 버림 / R 현재 검 보관). 잡화(↓): 잡템 목록(보기만).
 - SELECT 도움말(강화 화면): 배경·검·모루 흑백, 아이콘 컬러 + 아이콘 가운데에 이름, 버튼을 누르고 있는 동안만 위쪽 가운데 세 줄에 설명(검은 숨김). 설명 문구는 `src/main.cpp`의 `help_texts` (원하는 문구로 수정).
@@ -78,7 +80,7 @@ make -j8
 - 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다 (한글 13px 폭).
 - 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
 - `bn::string<N>`은 바이트 수 기준 (한글 1자 = 3바이트). 넘치면 게임이 멈추니 넉넉히 잡는다.
-- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`. 원본을 바꾸면 직접 실행.
+- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`. 원본을 바꾸면 직접 실행.
 - 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색(예: 모루의 밝은 파란색)을 다른 색과 합쳐 버린다.
 
 ## 정해 둔 것 / 미정

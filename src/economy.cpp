@@ -102,7 +102,18 @@ drop economy::destroy(bn::seed_random& random)
 
     if(result.item != material::NONE)
     {
-        result.quantity = random.get_int(drop_min, drop_max + 1);
+        int roll = random.get_int(100);
+
+        for(int pct : drop_count_pct)
+        {
+            if(roll < pct)
+            {
+                break;
+            }
+
+            roll -= pct;
+            ++result.quantity;
+        }
 
         int16_t& stock = _materials[int(result.item)];
         int total = stock + result.quantity;

@@ -30,6 +30,9 @@
 #include "bn_regular_bg_items_scene3_father_close.h"
 #include "bn_regular_bg_items_scene4_forge_door.h"
 #include "bn_sprite_items_anvil.h"
+#include "bn_sprite_items_title_icon_hard.h"
+#include "bn_sprite_items_title_icon_option.h"
+#include "bn_sprite_items_title_icon_story.h"
 #include "bn_sprite_items_icon_bag.h"
 #include "bn_sprite_items_icon_furnace.h"
 #include "bn_sprite_items_icon_sell.h"
@@ -67,6 +70,7 @@
 #include "bn_sprite_items_sword_28.h"
 #include "bn_sprite_items_sword_29.h"
 #include "economy.h"
+#include "common_variable_8x8_sprite_font.h"
 #include "hs_font.h"
 
 namespace
@@ -359,10 +363,10 @@ enum class title_choice
 
 constexpr int menu_count = 3;
 constexpr const char* menu_labels[menu_count] = { "STORY", "HARD", "OPTION" };
-constexpr int menu_x = -28;
-constexpr int menu_cursor_x = menu_x - 12;
-constexpr int menu_top_y = 40;
-constexpr int menu_step_y = 16;
+// 아이콘 셋(tools/make_title_icons.py, 32px)을 한 줄로: 가운데 HARD, 양옆 STORY·OPTION. 이름은 8x8 작은 폰트로 아이콘 바로 아래.
+constexpr int menu_icon_x[menu_count] = { -64, 0, 64 };
+constexpr int menu_icon_y = 28;
+constexpr int menu_label_y = 51;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
@@ -387,40 +391,53 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
         return index != int(title_choice::HARD) || hard_unlocked;
     };
 
-    bn::sprite_palette_ptr locked_palette = create_locked_palette();
-    bn::vector<bn::sprite_ptr, 16> menu_sprites;
+    // 아이콘: 고른 것만 밝고 위아래로 살짝 흔들리며, 나머지는 어둡다. 잠긴 HARD는 흑백.
+    bn::sprite_ptr menu_icons[menu_count] = {
+        bn::sprite_items::title_icon_story.create_sprite(menu_icon_x[0], menu_icon_y),
+        bn::sprite_items::title_icon_hard.create_sprite(menu_icon_x[1], menu_icon_y),
+        bn::sprite_items::title_icon_option.create_sprite(menu_icon_x[2], menu_icon_y),
+    };
+    bn::sprite_palette_ptr menu_icon_palettes[menu_count] = {
+        menu_icons[0].palette(), menu_icons[1].palette(), menu_icons[2].palette()
+    };
+
+    if(! hard_unlocked)
+    {
+        menu_icon_palettes[int(title_choice::HARD)].set_grayscale_intensity(1);
+    }
+
+    // 이름: 고른 것은 흰색, 나머지는 회색 (잠긴 HARD는 늘 회색)
+    bn::sprite_text_generator label_generator(common::variable_8x8_sprite_font);
+    label_generator.set_center_alignment();
+
+    const bn::sprite_palette_item& label_palette_item = common::variable_8x8_sprite_font.item().palette_item();
+    bn::sprite_palette_ptr normal_label_palette = label_palette_item.create_palette();
+    bn::sprite_palette_ptr locked_palette = bn::sprite_palette_ptr::create_new(label_palette_item);
+    locked_palette.set_fade(bn::color(12, 12, 12), bn::fixed(0.6));
+    bn::vector<bn::sprite_ptr, 8> menu_label_sprites[menu_count];
 
     for(int index = 0; index < menu_count; ++index)
     {
-        int first = menu_sprites.size();
-        left_generator.generate(menu_x, menu_top_y + index * menu_step_y, menu_labels[index], menu_sprites);
-
-        if(! enabled(index))
-        {
-            for(int sprite_index = first; sprite_index < menu_sprites.size(); ++sprite_index)
-            {
-                menu_sprites[sprite_index].set_palette(locked_palette);
-            }
-        }
+        label_generator.generate(menu_icon_x[index], menu_label_y, menu_labels[index], menu_label_sprites[index]);
     }
 
-    bn::vector<bn::sprite_ptr, 1> cursor_sprites;
-    left_generator.generate(menu_cursor_x, menu_top_y, ">", cursor_sprites);
-    bn::sprite_ptr& cursor = cursor_sprites[0];
-    bn::fixed_point cursor_origin = cursor.position();
-
-    text_line notice_text(center_generator, 0, -72);
+    text_line notice_text(center_generator, 0, 74);     // 이름 아래, 화면 맨 아래
     int selected = int(title_choice::STORY);
     int notice_frames = 0;
     unsigned frame = 0;
+    int styled = -1;     // 아이콘·이름 색을 마지막으로 맞춘 선택 (바뀔 때만 다시 칠한다)
 
-    auto move_cursor = [&](int direction)
+    auto style_menu = [&]()
     {
-        do
+        for(int index = 0; index < menu_count; ++index)
         {
-            selected = (selected + direction + menu_count) % menu_count;
+            bool chosen = index == selected;
+            bool locked = ! enabled(index);
+            menu_icon_palettes[index].set_fade(bn::color(0, 0, 0), chosen ? bn::fixed(0) : bn::fixed(0.4));
+            set_sprites_palette(menu_label_sprites[index], chosen && ! locked ? normal_label_palette : locked_palette);
         }
-        while(! enabled(selected));
+
+        styled = selected;
     };
 
     fade_screen(true);
@@ -429,13 +446,18 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
     {
         ++frame;
 
-        if(bn::keypad::up_pressed())
+        if(bn::keypad::left_pressed())
         {
-            move_cursor(-1);
+            selected = (selected + menu_count - 1) % menu_count;
         }
-        else if(bn::keypad::down_pressed())
+        else if(bn::keypad::right_pressed())
         {
-            move_cursor(1);
+            selected = (selected + 1) % menu_count;
+        }
+
+        if(selected != styled)
+        {
+            style_menu();
         }
 
         if(bn::keypad::a_pressed() || bn::keypad::start_pressed())
@@ -443,6 +465,11 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
             if(selected == int(title_choice::OPTION))
             {
                 notice_text.set_text("OPTION - COMING SOON");
+                notice_frames = 90;
+            }
+            else if(! enabled(selected))
+            {
+                notice_text.set_text("HARD - LOCKED");
                 notice_frames = 90;
             }
             else
@@ -459,8 +486,12 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
             notice_text.set_text("");
         }
 
-        // 커서는 살짝 좌우로 흔들린다
-        cursor.set_position(cursor_origin.x() - int(frame / 16) % 2, cursor_origin.y() + selected * menu_step_y);
+        // 고른 아이콘은 위아래로 살짝 흔들린다
+        for(int index = 0; index < menu_count; ++index)
+        {
+            int bounce = index == selected ? -int(frame / 14) % 2 * 2 : 0;
+            menu_icons[index].set_y(menu_icon_y + bounce);
+        }
 
         // 타이틀에 머무는 동안 시간대가 바뀌면 그림도 바꾼다
         if(frame % 60 == 0)
@@ -1554,8 +1585,13 @@ void run_opening_cutscene()
     bn::sprite_ptr& indicator = indicator_sprites[0];
     indicator.set_visible(false);
 
+    // 컷씬 음악 (assets/audio/story_chiptune_sad.wav): 컷씬이 끝나 인게임으로 넘어갈 때까지 반복, 마지막 장면의 페이드와 함께 끈다
+    bn::music_items::story_chiptune_sad.play(1);
+    int scene_number = 0;
+
     for(const cutscene_scene& scene : opening_scenes)
     {
+        ++scene_number;
         bn::regular_bg_ptr scene_bg = scene.bg.create_bg(title_bg_x, title_bg_y);
 
         // 그림의 팔레트 0번(투명)은 backdrop으로 보이므로 같은 색으로 맞춘다
@@ -1592,8 +1628,10 @@ void run_opening_cutscene()
             indicator.set_visible(false);
         }
 
-        fade_screen(false);
+        fade_screen(false, scene_number == int(sizeof(opening_scenes) / sizeof(opening_scenes[0])));
     }
+
+    bn::music::stop();
 }
 
 }

@@ -164,9 +164,8 @@ constexpr const level_row* level_table(difficulty diff)
     return diff == difficulty::HARD ? hard_levels : easy_levels;
 }
 
-// 파괴 시 잡템 드랍 수량 [min, max]
-constexpr int drop_min = 1;
-constexpr int drop_max = 3;
+// 파괴 시 잡템 드랍 수량 0~5개의 확률(%). 합이 100. 평균 약 2.1개 (임시값, 조정 가능)
+constexpr int drop_count_pct[] = { 10, 25, 30, 20, 10, 5 };
 
 // 스펙에 없는 임시값
 constexpr int32_t start_money = 100;            // 시작 소지금
