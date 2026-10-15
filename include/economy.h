@@ -1,0 +1,100 @@
+#ifndef HS_ECONOMY_H
+#define HS_ECONOMY_H
+
+#include "bn_array.h"
+#include "bn_vector.h"
+
+#include "economy_data.h"
+
+namespace bn
+{
+    class seed_random;
+}
+
+namespace hs
+{
+
+struct drop
+{
+    material item = material::NONE;
+    int quantity = 0;
+};
+
+enum class buy_result
+{
+    OK,
+    NOT_ENOUGH_MONEY,
+    WARP_NEEDS_PLUS_ZERO,
+    WARP_SUCCESS,
+    WARP_FAILED,
+};
+
+enum class craft_result
+{
+    OK,
+    NOT_ENOUGH_MATERIAL,
+    STORAGE_FULL,
+};
+
+// 세이브에 들어갈 상태 전부 (난이도, 소지금, 단계, 방지권, 잡템, 보관 검)
+class economy
+{
+
+public:
+    explicit economy(difficulty diff);
+
+    [[nodiscard]] difficulty diff() const { return _diff; }
+    [[nodiscard]] int32_t money() const { return _money; }
+    [[nodiscard]] int level() const { return _level; }
+    [[nodiscard]] int tickets() const { return _tickets; }
+    [[nodiscard]] int material_quantity(material item) const { return _materials[int(item)]; }
+    [[nodiscard]] const bn::ivector<int8_t>& stored_swords() const { return _stored_swords; }
+
+    [[nodiscard]] const level_row& row() const { return level_table(_diff)[_level]; }
+
+    // 강화: 비용을 내고 판정한다. 실패해도 단계는 그대로이고, 호출한 쪽이 protect() 또는 destroy()를 고른다.
+    [[nodiscard]] bool at_max_level() const { return _level == max_level; }
+    [[nodiscard]] bool can_afford_upgrade() const { return _money >= row().cost_usd; }
+    [[nodiscard]] bool upgrade(bn::seed_random& random);
+
+    [[nodiscard]] bool protect_available() const { return row().protect_cost > 0; }
+    [[nodiscard]] bool can_protect() const { return protect_available() && _tickets >= row().protect_cost; }
+    void protect();
+    drop destroy(bn::seed_random& random);
+
+    [[nodiscard]] bool can_sell() const { return row().sell_usd > 0; }
+    int32_t sell();
+
+    // +0인데 강화비가 없으면 다시 시작할 수 없으므로 돈을 받는다
+    [[nodiscard]] bool needs_loan() const { return _level == 0 && ! can_afford_upgrade(); }
+    void take_loan();
+
+    [[nodiscard]] int32_t price(const shop_item& item) const;
+    buy_result buy(const shop_item& item, bn::seed_random& random);
+
+    [[nodiscard]] int required_quantity(const recipe& recipe) const;
+    [[nodiscard]] int output_amount(const recipe& recipe) const;
+    craft_result craft(const recipe& recipe);
+
+    // 보관한 검을 꺼내 현재 검과 바꾼다. 현재 검이 +0이면 버리고 꺼낸다.
+    void take_out_sword(int index);
+
+#ifdef HS_DEBUG
+    // 테스트용: 돈 $100,000, 방지권 5장, 잡템 각 5개
+    void debug_grant();
+#endif
+
+private:
+    difficulty _diff;
+    int32_t _money = start_money;
+    int _level = 0;
+    int _tickets = 0;
+    bn::array<int16_t, material_count> _materials = {};
+    bn::vector<int8_t, max_stored_swords> _stored_swords;
+
+    void _add_money(int32_t amount);
+};
+
+}
+
+#endif
