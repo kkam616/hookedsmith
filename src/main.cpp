@@ -182,6 +182,21 @@ public:
         apply_visible();
     }
 
+    // 글자 전체의 팔레트를 바꾼다. (Butano는 글자 여러 개를 스프라이트 하나로 묶어 그리므로, 일부 글자만 색을 바꾸려면 글을 나눠 만들어야 한다)
+    void set_palette(const bn::sprite_palette_ptr& palette)
+    {
+        for(bn::sprite_ptr& sprite : _sprites)
+        {
+            sprite.set_palette(palette);
+        }
+    }
+
+    // 다음 set_text부터 적용되는 왼쪽(정렬 기준) x 좌표
+    void set_x(int x)
+    {
+        _x = x;
+    }
+
     // 숨겨 둔 동안 set_text를 불러도 보이지 않는다
     void set_visible(bool visible)
     {
@@ -219,6 +234,26 @@ bn::sprite_palette_ptr create_private_font_palette()
     }
 
     colors[1] = bn::color(31, 0, 31);
+
+    bn::sprite_palette_ptr result = bn::sprite_palette_ptr::create_new(item);
+    result.set_colors(colors);
+    return result;
+}
+
+// 글자 본체(14번 색)만 body 색으로 바꾼 폰트 팔레트. 1번 색도 같이 바꿔 다른 팔레트와 합쳐지지 않게 한다.
+bn::sprite_palette_ptr create_tinted_font_palette(const bn::color& body)
+{
+    const bn::sprite_palette_item& item = hs::font.item().palette_item();
+    const bn::span<const bn::color>& source = item.colors_ref();
+    bn::array<bn::color, 16> colors;
+
+    for(int index = 0; index < source.size(); ++index)
+    {
+        colors[index] = source[index];
+    }
+
+    colors[1] = body;
+    colors[14] = body;
 
     bn::sprite_palette_ptr result = bn::sprite_palette_ptr::create_new(item);
     result.set_colors(colors);
@@ -643,7 +678,9 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         set_sprites_palette(badge, enabled ? normal_palette : locked_palette);
     };
 
-    text_line name_text(center_generator, 0, name_y);       // 이름 (메시지가 잠깐 차지한다)
+    text_line name_text(center_generator, 0, name_y);       // 메시지 (이름 자리를 잠깐 차지한다)
+    text_line name_prefix_text(left_generator, 0, name_y);  // 이름의 "+N" (단계별 색)
+    text_line name_rest_text(left_generator, 0, name_y);    // 이름의 나머지
     text_line chance_text(center_generator, 0, chance_y);
     text_line cost_text(center_generator, 0, cost_y);
     text_line price_text(center_generator, 0, price_y);
@@ -652,12 +689,39 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     // 메시지는 이름 자리에 message_frames 동안 보였다가 이름으로 돌아간다.
     // 방지권 질문(PROTECT_ASK)은 답할 때까지 유지한다.
     int message_timer = 0;
-    bn::string<32> name_line;
+    int name_level = 0;
+
+    // 단계 표시 "+N" 색: +0 회색 / +1~5 흰색 / +6~16 파랑 / +17~29 빨강
+    bn::sprite_palette_ptr gray_tint = create_tinted_font_palette(bn::color(14, 14, 14));
+    bn::sprite_palette_ptr blue_tint = create_tinted_font_palette(bn::color(8, 17, 31));
+    bn::sprite_palette_ptr red_tint = create_tinted_font_palette(bn::color(31, 7, 7));
+    const bn::sprite_palette_ptr* name_tint = nullptr;
+
+    // "+N 이름"을 가운데에 맞춰 두 조각으로 쓴다 ("+N"만 색을 입힌다)
+    auto set_name = [&]()
+    {
+        bn::string<8> prefix("+");
+        prefix += bn::to_string<4>(name_level);
+        const char* rest = hs::sword_names[name_level];
+        int prefix_width = left_generator.width(prefix + " ");
+        int start = -(prefix_width + left_generator.width(rest)) / 2;
+
+        name_text.set_text("");
+        name_prefix_text.set_x(start);
+        name_prefix_text.set_text(prefix);
+        name_rest_text.set_x(start + prefix_width);
+        name_rest_text.set_text(rest);
+
+        if(name_tint)
+        {
+            name_prefix_text.set_palette(*name_tint);
+        }
+    };
 
     auto show_name = [&]()
     {
         message_timer = 0;
-        name_text.set_text(name_line);
+        set_name();
     };
 
     auto message_text = [&](const bn::string_view& text)
@@ -668,6 +732,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
         else
         {
+            name_prefix_text.set_text("");
+            name_rest_text.set_text("");
             name_text.set_text(text);
             message_timer = message_frames;
         }
@@ -742,11 +808,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         price_line += row.sell_usd < 0 || eco.at_max_level() ? bn::string<24>("-") : format_money_short(row.sell_usd);
         price_text.set_text(price_line);
 
-        name_line = sword_label(eco.level());
+        name_level = eco.level();
+        name_tint = eco.level() == 0 ? &gray_tint : eco.level() <= 5 ? nullptr :
+                    eco.level() <= 16 ? &blue_tint : &red_tint;
 
         if(message_timer == 0)
         {
-            name_text.set_text(name_line);
+            set_name();
         }
 
         bn::string<32> chance_line;
@@ -799,6 +867,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         sword.set_visible(! on);        // 설명 셋째 줄이 검 끝과 겹치므로 도움말 동안은 검을 숨긴다
 
         name_text.set_visible(! on);
+        name_prefix_text.set_visible(! on);
+        name_rest_text.set_visible(! on);
         chance_text.set_visible(! on);
         cost_text.set_visible(! on);
         price_text.set_visible(! on);
@@ -1038,7 +1108,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         if(message_timer > 0 && --message_timer == 0)
         {
-            name_text.set_text(name_line);
+            set_name();
         }
 
         bn::core::update();
