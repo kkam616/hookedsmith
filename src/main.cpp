@@ -20,6 +20,7 @@
 #include "bn_vector.h"
 
 #include "save.h"
+#include "time_band.h"
 
 #include "bn_regular_bg_items_forge_bg.h"
 #include "bn_regular_bg_items_title_day.h"
@@ -282,27 +283,18 @@ void set_sprites_palette(bn::ivector<bn::sprite_ptr>& sprites, const bn::sprite_
 // 낮 06~16시, 노을 16~21시, 밤 21~06시. 시계가 없으면 낮.
 const bn::regular_bg_item& title_item_for_now()
 {
-    if(bn::time::active())
+    switch(hs::current_time_band())
     {
-        if(bn::optional<bn::time> now = bn::time::current())
-        {
-            int hour = now->hour();
 
-            if(hour >= 6 && hour < 16)
-            {
-                return bn::regular_bg_items::title_day;
-            }
+    case hs::time_band::SUNSET:
+        return bn::regular_bg_items::title_sunset;
 
-            if(hour >= 16 && hour < 21)
-            {
-                return bn::regular_bg_items::title_sunset;
-            }
+    case hs::time_band::NIGHT:
+        return bn::regular_bg_items::title_night;
 
-            return bn::regular_bg_items::title_night;
-        }
+    default:
+        return bn::regular_bg_items::title_day;
     }
-
-    return bn::regular_bg_items::title_day;
 }
 
 // 스플래시 화면 — Powered by Butano → JAY'S LOFT
@@ -564,6 +556,7 @@ enum class forge_exit
     SWORDS,     // ← (창고)
     BAG,        // ↓ (잡화)
     PAUSE,      // START (일시정지 메뉴)
+    GAME_OVER,  // 파산
 };
 
 constexpr int hammer_frames = 40;
@@ -829,7 +822,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         else
         {
             chance_line = "성공률 ";
-            chance_line += bn::to_string<4>(row.success_pct);
+            chance_line += bn::to_string<4>(eco.success_pct());
             chance_line += "%";
         }
 
@@ -918,17 +911,44 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         refresh_status();
     };
 
+    eco.set_time_penalty(hs::time_penalty_pct(hs::current_time_band()));
     refresh_status();
     message_text(first_message);
     refresh_status();
     fade_screen(true);
 
+    int clock_frames = 0;
+
     while(true)
     {
+        // 시간대 경계(16시·21시·06시)를 넘으면 성공률 보정과 표시를 바로 바꾼다 (1초에 한 번 확인)
+        if(++clock_frames >= 60)
+        {
+            clock_frames = 0;
+            int penalty = hs::time_penalty_pct(hs::current_time_band());
+
+            if(penalty != eco.time_penalty())
+            {
+                eco.set_time_penalty(penalty);
+
+                if(current_phase == phase::IDLE && ! help_mode)
+                {
+                    refresh_status();
+                }
+            }
+        }
+
         switch(current_phase)
         {
 
         case phase::IDLE:
+            // 파산: 메시지(판매·파괴 결과)를 다 보여 준 뒤 게임 오버
+            if(message_timer == 0 && ! help_mode && eco.is_bankrupt())
+            {
+                fade_screen(false);
+                return forge_exit::GAME_OVER;
+            }
+
             if(bn::keypad::select_pressed())
             {
                 set_help(! help_mode);
@@ -962,6 +982,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 }
                 else
                 {
+                    eco.set_time_penalty(hs::time_penalty_pct(hs::current_time_band()));    // 판정 순간의 시계로
                     upgrade_succeeded = eco.upgrade(random);
                     current_phase = phase::HAMMERING;
                     phase_frame = 0;
@@ -1014,8 +1035,17 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 #ifdef HS_DEBUG
             else if(bn::keypad::up_pressed())
             {
-                eco.debug_grant();
-                message_text("DEBUG +$100,000");
+                if(bn::keypad::b_held())
+                {
+                    eco.debug_bankrupt();       // B를 누른 채 ↑: 파산 상태 만들기
+                    message_text("DEBUG BANKRUPT");
+                }
+                else
+                {
+                    eco.debug_grant();
+                    message_text("DEBUG +$100,000");
+                }
+
                 refresh_status();
             }
 #endif
@@ -1894,6 +1924,51 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
     }
 }
 
+// ─── 게임 오버 (파산) ────────────────────────────────────────────────
+
+// 아무 버튼이나 누르면 돌아간다 (타이틀로). 저장 슬롯은 건드리지 않는다.
+void run_game_over()
+{
+    bn::sprite_text_generator center_generator(hs::font);
+    center_generator.set_center_alignment();
+
+    bn::sprite_palette_ptr red_tint = create_tinted_font_palette(bn::color(31, 7, 7));
+
+    text_line title_text(center_generator, 0, -30);
+    text_line reason_line_1(center_generator, 0, -4);
+    text_line reason_line_2(center_generator, 0, 12);
+    text_line prompt_text(center_generator, 0, 52);
+
+    title_text.set_text("GAME OVER");
+    title_text.set_palette(red_tint);
+    reason_line_1.set_text("더 이상 할 수 있는 게");
+    reason_line_2.set_text("남아 있지 않다...");
+
+    fade_screen(true);
+
+    int frame = 0;
+
+    while(true)
+    {
+        ++frame;
+
+        // 결과를 보기도 전에 넘어가지 않게 잠깐은 입력을 받지 않는다
+        if(frame > 45)
+        {
+            prompt_text.set_text((frame / 30) % 2 == 0 ? "아무 버튼이나 누르세요" : "");
+
+            if(bn::keypad::any_pressed())
+            {
+                break;
+            }
+        }
+
+        bn::core::update();
+    }
+
+    fade_screen(false);
+}
+
 // ─── 오프닝 컷씬 ─────────────────────────────────────────────────────
 // 그림은 assets/graphics/cutscene/ → tools/make_cutscenes.py가 graphics/로 변환 (240x112, 위쪽)
 // 아래 48줄은 텍스트 박스: 화자 1줄 + 대사 2줄. 대사는 자동 줄바꿈하고 2줄을 넘으면 assert.
@@ -2130,6 +2205,11 @@ int main()
 
             case forge_exit::PAUSE:
                 quit = run_pause(eco) == pause_choice::QUIT;
+                break;
+
+            case forge_exit::GAME_OVER:
+                run_game_over();
+                quit = true;        // 타이틀로
                 break;
 
             default:

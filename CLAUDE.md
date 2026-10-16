@@ -85,6 +85,7 @@ make -j8
 
 ## 정해 둔 것 / 미정
 - 세이브(SRAM 3슬롯 + HARD 해금 머리글)는 구현됨: `include/save.h`, `src/save.cpp`. 강화 화면 START → 일시정지(Resume/Save/Quit), 타이틀에서 STORY/HARD를 고르면 START 화면(NEW GAME + 슬롯 3개, `run_start_select`)이 열린다. NEW GAME만 STORY 컷씬을 보고 슬롯은 바로 시작. 저장 항목은 `economy::take_snapshot()/restore()`. HARD 해금(`unlock_hard()`)은 +29 엔딩 때 연결한다. 테스트하면 ROM 옆에 `hookedsmith.sav`가 생긴다.
+- 시간대(`include/time_band.h`): 낮/노을/밤. 강화 성공률에서 0/2/4%p를 뺀다(`economy::success_pct()`). 게임 오버(파산, `economy::is_bankrupt()` + `run_game_over()`)는 구현됨. 디버그 빌드에서 B를 누른 채 ↑로 파산 상태를 만들 수 있다.
 - 강화 화면에서 SELECT 도움말이 켜져 있으면 START가 일시정지를 열지 않는다.
 - computer-use로 mGBA를 조작할 때 포커스가 바탕화면(ShellExperienceHost)에 잡혀 입력이 막히는 일이 있다. AppActivate를 반복해도 안 풀리면 mGBA를 모두 끄고 처음부터 다시 띄운다.
 - 영어 지원(OPTION에서 Language 전환 예정) 검토 결과: 가능하지만 준비가 필요하다.

@@ -52,6 +52,17 @@ public:
 
     [[nodiscard]] const level_row& row() const { return level_table(_diff)[_level]; }
 
+    // 시간대 보정: 성공률에서 이 %p를 뺀다 (낮 0 / 노을 2 / 밤 4, time_band.h). 저장하지 않고 시계에서 매번 정한다.
+    void set_time_penalty(int pct) { _time_penalty = pct; }
+    [[nodiscard]] int time_penalty() const { return _time_penalty; }
+
+    // 보정을 적용한 실제 성공률(%). 0 아래로는 내려가지 않는다.
+    [[nodiscard]] int success_pct() const
+    {
+        int pct = row().success_pct - _time_penalty;
+        return pct < 0 ? 0 : pct;
+    }
+
     // 강화: 비용을 내고 판정한다. 실패해도 단계는 그대로이고, 호출한 쪽이 protect() 또는 destroy()를 고른다.
     [[nodiscard]] bool at_max_level() const { return _level == max_level; }
     [[nodiscard]] bool can_afford_money() const { return _money >= row().cost_usd; }
@@ -67,7 +78,9 @@ public:
     [[nodiscard]] bool can_sell() const { return row().sell_usd > 0; }
     int32_t sell();
 
-    // +0인데 강화비가 없으면 더 할 수 있는 게 없다 → 나중에 게임 오버 이벤트로 처리할 예정 (아직 없음)
+    // 파산(게임 오버): 강화할 수 없고, 팔 검이 없고(현재 검 판매 불가 + 창고 비어 있음),
+    // 상점에서 가장 싼 물건도 못 사고, 화구에서 어떤 교환도 못 하는 상태. 최종 검(+29)에서는 아니다.
+    [[nodiscard]] bool is_bankrupt() const;
 
     [[nodiscard]] int32_t price(const shop_item& item) const;
     buy_result buy(const shop_item& item, bn::seed_random& random);
@@ -103,6 +116,9 @@ public:
 #ifdef HS_DEBUG
     // 테스트용: 돈 $100,000, 방지권 5장, 잡템 각 5개, 보관 검 +19 ×1·+21 ×2·+22 ×1
     void debug_grant();
+
+    // 테스트용: 돈 0, +0 검, 방지권·잡템·보관 검 모두 비움 (게임 오버 확인용)
+    void debug_bankrupt();
 #endif
 
 private:
@@ -112,6 +128,7 @@ private:
     int _tickets = 0;
     bn::array<int16_t, material_count> _materials = {};
     bn::vector<int8_t, max_stored_swords> _stored_swords;
+    int _time_penalty = 0;
 
     void _add_money(int32_t amount);
     void _spend_materials();

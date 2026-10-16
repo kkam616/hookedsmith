@@ -80,7 +80,7 @@ bool economy::upgrade(bn::seed_random& random)
     _money -= row().cost_usd;
     _spend_materials();
 
-    if(random.get_int(100) < row().success_pct)
+    if(random.get_int(100) < success_pct())
     {
         ++_level;
         return true;
@@ -236,6 +236,34 @@ void economy::store_sword()
     _level = 0;
 }
 
+bool economy::is_bankrupt() const
+{
+    if(at_max_level() || can_afford_upgrade() || can_sell() || ! _stored_swords.empty())
+    {
+        return false;
+    }
+
+    for(const shop_item& item : shop_items)
+    {
+        if(_money >= price(item))
+        {
+            return false;
+        }
+    }
+
+    for(const recipe& entry : recipes)
+    {
+        bool storage_blocked = entry.output == craft_output::SWORD && _stored_swords.full();
+
+        if(! storage_blocked && _materials[int(entry.input)] >= required_quantity(entry))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 economy::snapshot economy::take_snapshot() const
 {
     snapshot state;
@@ -304,6 +332,15 @@ void economy::debug_grant()
     {
         stock = int16_t(stock + 5 > material_cap ? material_cap : stock + 5);
     }
+}
+
+void economy::debug_bankrupt()
+{
+    _money = 0;
+    _level = 0;
+    _tickets = 0;
+    _materials = {};
+    _stored_swords.clear();
 }
 #endif
 
