@@ -46,6 +46,7 @@ public:
     [[nodiscard]] difficulty diff() const { return _diff; }
     [[nodiscard]] int32_t money() const { return _money; }
     [[nodiscard]] int level() const { return _level; }
+    [[nodiscard]] int best_level() const { return _best_level; }     // 지금까지 도달한 가장 높은 단계 (판매·파괴해도 남는다)
     [[nodiscard]] int tickets() const { return _tickets; }
     [[nodiscard]] int material_quantity(material item) const { return _materials[int(item)]; }
     [[nodiscard]] const bn::ivector<int8_t>& stored_swords() const { return _stored_swords; }
@@ -105,6 +106,7 @@ public:
         difficulty diff = difficulty::EASY;
         int32_t money = 0;
         int level = 0;
+        int best_level = 0;
         int tickets = 0;
         bn::array<int16_t, material_count> materials = {};
         bn::vector<int8_t, max_stored_swords> stored_swords;
@@ -121,18 +123,20 @@ public:
     void debug_bankrupt();
 
     // 테스트용: 검 단계를 바로 바꾼다 (성공 연출 확인용)
-    void debug_set_level(int level) { _level = level; }
+    void debug_set_level(int level) { _level = level; _note_best(); }
 #endif
 
 private:
     difficulty _diff;
     int32_t _money = 0;
     int _level = 0;
+    int _best_level = 0;
     int _tickets = 0;
     bn::array<int16_t, material_count> _materials = {};
     bn::vector<int8_t, max_stored_swords> _stored_swords;
     int _time_penalty = 0;
 
+    void _note_best() { if(_level > _best_level) { _best_level = _level; } }
     void _add_money(int32_t amount);
     void _spend_materials();
 };

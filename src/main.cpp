@@ -130,6 +130,7 @@
 #include "common_variable_8x8_sprite_font.h"
 #include "hs_font.h"
 #include "hs_font_outline.h"
+#include "hs_font_small.h"
 
 namespace
 {
@@ -276,6 +277,21 @@ bn::string<32> sword_label(int level)
     result += bn::to_string<4>(level);
     result += " ";
     result += hs::sword_names[level];
+    return result;
+}
+
+// 최고기록 줄: "H +21 다색검"
+bn::string<40> sword_best_label(int level, bool with_name)
+{
+    bn::string<40> result("H +");
+    result += bn::to_string<4>(level);
+
+    if(with_name)
+    {
+        result += " ";
+        result += hs::sword_names[level];
+    }
+
     return result;
 }
 
@@ -923,9 +939,9 @@ constexpr int info_left_x = -52;
 constexpr int info_right_x = 52;
 constexpr int info_label_y = -16;
 constexpr int info_value_y = -2;
-constexpr int message_single_y = 60;
-constexpr int message_first_y = 54;
-constexpr int message_second_y = 66;
+constexpr int message_single_y = 56;
+constexpr int message_first_y = 45;
+constexpr int message_second_y = 57;
 constexpr int message_frames = 90;      // 메시지가 이름 자리를 차지하는 시간
 
 // SELECT 도움말: 버튼을 누르고 있는 동안 위쪽 가운데 세 줄에 설명을 보여준다 (줄 폭 150px 이하, 한글 11자 안팎).
@@ -1061,6 +1077,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     text_line money_text(money_generator, 114, 72);
     bn::sprite_palette_ptr money_palette = create_two_tone_font_palette(gold_body_color, gold_outline_color);
     money_text.set_sticky_palette(money_palette);
+
+    // 최고기록: 왼쪽 아래 "★ +N 이름" (지금까지 도달한 가장 높은 단계, 단계 색은 이름과 같다)
+    bn::sprite_text_generator best_generator(hs::font_small);
+    best_generator.set_left_alignment();
+    text_line best_text(best_generator, -114, 72);          // "H +N" (단계 색)
+    text_line best_name_text(best_generator, -114, 72);     // 검 이름 (흰색)
+    int shown_best = eco.best_level();      // 망치질·연출 중에는 결과가 새어 나가지 않게 이전 값을 유지한다
 
     // 메시지는 아래 가운데에 message_frames 동안 보였다가 사라진다 (0 = 없음).
     // 방지권 질문(PROTECT_ASK)은 답할 때까지(-1) 유지한다.
@@ -1269,6 +1292,25 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         money_text.set_text(format_money(eco.money()));
 
+        if(current_phase != phase::HAMMERING && ! reveal_hold)
+        {
+            shown_best = eco.best_level();
+        }
+
+        // "H +N"만 단계 색, 검 이름은 흰색. 소지금과 겹칠 만큼 길면 이름을 뺀다.
+        bn::string<40> best_prefix = sword_best_label(shown_best, false);
+        bn::string<40> best_name(hs::sword_names[shown_best]);
+        const int prefix_width = best_generator.width(best_prefix + " ");
+        const bool show_name = -114 + prefix_width + best_generator.width(best_name) + 8 <=
+                               114 - money_generator.width(format_money(eco.money()));
+
+        best_text.set_text(best_prefix);
+        best_text.set_palette(shown_best == 0 ? gray_tint : shown_best <= 5 ? normal_palette :
+                              shown_best <= 16 ? blue_tint : red_tint);
+        best_name_text.set_x(-114 + prefix_width);
+        best_name_text.set_text(show_name ? best_name : bn::string<40>());
+        best_name_text.set_palette(normal_palette);
+
         bool idle = current_phase == phase::IDLE;
         set_button_enabled(shop_icon_palette, shop_badge, eco.level() == 0);
         set_button_enabled(furnace_icon_palette, furnace_badge, eco.level() == 0);
@@ -1318,6 +1360,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         sell_label.set_visible(! on);
         sell_value.set_visible(! on);
         money_text.set_visible(! on);
+        best_text.set_visible(! on);
+        best_name_text.set_visible(! on);
 
         if(on)
         {

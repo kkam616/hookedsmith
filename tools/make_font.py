@@ -30,6 +30,9 @@ OUT_BMP = os.path.join(ROOT, 'graphics', 'hs_font.bmp')
 OUT_JSON = os.path.join(ROOT, 'graphics', 'hs_font.json')
 OUT_HEADER = os.path.join(ROOT, 'include', 'hs_font.h')
 
+SMALL_SIZE = 10        # 작은 글꼴(hs::font_small): 10px 글자 + 사방 외곽선, 전부 굴림으로 그린다
+SMALL_TOP = 3
+
 CELL = 16
 BODY = 14     # 흰색
 SHADOW = 12   # 검은색
@@ -40,7 +43,7 @@ def collect_characters():
     for folder in ('src', 'include'):
         for dirpath, _, filenames in os.walk(os.path.join(ROOT, folder)):
             for filename in filenames:
-                if filename in ('hs_font.h', 'hs_font_outline.h') or not filename.endswith(('.cpp', '.h', '.hpp')):
+                if filename in ('hs_font.h', 'hs_font_outline.h', 'hs_font_small.h') or not filename.endswith(('.cpp', '.h', '.hpp')):
                     continue
                 with open(os.path.join(dirpath, filename), encoding='utf-8') as f:
                     text = f.read()
@@ -160,6 +163,32 @@ def build_image(chars, ascii_image, outline):
     return image, glyph_count
 
 
+def build_small(chars):
+    """작은 외곽선 폰트(hs::font_small): ASCII 33~126과 그 밖의 글자를 모두 굴림 10px로 그린다.
+    반환: (이미지, 글자 수, 폭 목록 — 공백(32)부터 ASCII 126까지 95개 + chars)"""
+    font = ImageFont.truetype(KOREAN_TTF, SMALL_SIZE, index=0)
+    glyphs = [chr(code) for code in range(33, 127)] + list(chars)
+    image = Image.new('P', (CELL, CELL * len(glyphs)), 0)
+
+    for index, char in enumerate(glyphs):
+        mask = Image.new('1', (CELL, CELL), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.fontmode = '1'
+        draw.text((1, SMALL_TOP), char, font=font, fill=1)
+        base_y = index * CELL
+        draw_outline(image, base_y, mask)
+        for y in range(CELL):
+            for x in range(CELL):
+                if mask.getpixel((x, y)):
+                    image.putpixel((x, base_y + y), BODY)
+
+    widths = [4]     # 공백
+    for char in glyphs[:94]:
+        widths.append(int(round(font.getlength(char))) + 2)
+    widths += [SMALL_SIZE + 2] * len(chars)
+    return image, len(glyphs), widths
+
+
 def header_text(chars, widths, name, suffix):
     """name = 스프라이트 아이템 이름(hs_font), suffix = 변수 이름 꼬리('' 또는 '_outline')"""
     guard = name.upper() + '_H'
@@ -236,6 +265,18 @@ def main():
 
         if changed:
             print('%s: %d glyphs (%d non-ASCII)' % (name, glyph_count, len(chars)))
+
+    # 작은 외곽선 폰트
+    image, glyph_count, widths = build_small(chars)
+    out_bmp = os.path.join(ROOT, 'graphics', 'hs_font_small.bmp')
+    out_json = os.path.join(ROOT, 'graphics', 'hs_font_small.json')
+    out_header = os.path.join(ROOT, 'include', 'hs_font_small.h')
+    small_changed = write_if_changed(out_bmp, write_bmp_4bpp(out_bmp, image, palette))
+    small_changed |= write_if_changed(out_json, '{\n    "type": "sprite",\n    "height": 16\n}\n')
+    small_changed |= write_if_changed(out_header, header_text(chars, widths, 'hs_font_small', '_small'))
+
+    if small_changed:
+        print('hs_font_small: %d glyphs (%d non-ASCII)' % (glyph_count, len(chars)))
 
     return 0
 

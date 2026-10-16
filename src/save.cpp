@@ -31,7 +31,7 @@ namespace
         int16_t tickets;
         int16_t materials[material_count];
         int8_t stored[max_stored_swords];
-        uint16_t reserved;
+        uint16_t best_level;      // 예전 저장 파일은 이 자리가 0이라 현재 단계가 최고기록이 된다
         uint32_t checksum;
     };
 
@@ -91,6 +91,7 @@ namespace
         state.diff = difficulty(data.diff);
         state.money = data.money;
         state.level = data.level;
+        state.best_level = data.best_level > max_level ? data.level : data.best_level;
         state.tickets = data.tickets;
 
         for(int index = 0; index < material_count; ++index)
@@ -159,6 +160,7 @@ void write(int slot, const economy& eco)
     data.version = format_version;
     data.diff = uint8_t(state.diff);
     data.level = uint8_t(state.level);
+    data.best_level = uint16_t(state.best_level);
     data.stored_count = uint8_t(state.stored_swords.size());
     data.money = state.money;
     data.tickets = int16_t(state.tickets > 32767 ? 32767 : state.tickets);

@@ -83,6 +83,7 @@ bool economy::upgrade(bn::seed_random& random)
     if(random.get_int(100) < success_pct())
     {
         ++_level;
+        _note_best();
         return true;
     }
 
@@ -165,6 +166,7 @@ buy_result economy::buy(const shop_item& item, bn::seed_random& random)
     if(random.get_int(100) < warp_success_pct)
     {
         _level = item.amount;
+        _note_best();
         return buy_result::WARP_SUCCESS;
     }
 
@@ -226,6 +228,7 @@ void economy::take_out_sword(int index)
     }
 
     _level = stored_level;
+    _note_best();
 }
 
 void economy::store_sword()
@@ -270,6 +273,7 @@ economy::snapshot economy::take_snapshot() const
     state.diff = _diff;
     state.money = _money;
     state.level = _level;
+    state.best_level = _best_level;
     state.tickets = _tickets;
     state.materials = _materials;
     state.stored_swords = _stored_swords;
@@ -308,6 +312,7 @@ bool economy::restore(const snapshot& state)
     _diff = state.diff;
     _money = state.money;
     _level = state.level;
+    _best_level = state.best_level < state.level ? state.level : state.best_level;
     _tickets = state.tickets;
     _materials = state.materials;
     _stored_swords = state.stored_swords;
