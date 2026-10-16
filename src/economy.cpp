@@ -236,6 +236,56 @@ void economy::store_sword()
     _level = 0;
 }
 
+economy::snapshot economy::take_snapshot() const
+{
+    snapshot state;
+    state.diff = _diff;
+    state.money = _money;
+    state.level = _level;
+    state.tickets = _tickets;
+    state.materials = _materials;
+    state.stored_swords = _stored_swords;
+    return state;
+}
+
+bool economy::restore(const snapshot& state)
+{
+    if(state.diff != difficulty::EASY && state.diff != difficulty::HARD)
+    {
+        return false;
+    }
+
+    if(state.money < 0 || state.money > money_cap || state.level < 0 || state.level > max_level ||
+       state.tickets < 0 || state.tickets > 32767)      // 세이브에 int16으로 저장한다
+    {
+        return false;
+    }
+
+    for(int16_t stock : state.materials)
+    {
+        if(stock < 0 || stock > material_cap)
+        {
+            return false;
+        }
+    }
+
+    for(int8_t stored : state.stored_swords)
+    {
+        if(stored < 1 || stored > max_level)
+        {
+            return false;
+        }
+    }
+
+    _diff = state.diff;
+    _money = state.money;
+    _level = state.level;
+    _tickets = state.tickets;
+    _materials = state.materials;
+    _stored_swords = state.stored_swords;
+    return true;
+}
+
 #ifdef HS_DEBUG
 void economy::debug_grant()
 {

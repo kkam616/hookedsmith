@@ -86,6 +86,20 @@ public:
     // 보관한 검 중 해당 단계의 개수
     [[nodiscard]] int stored_count(int level) const;
 
+    // 세이브용: 상태 전부를 꺼내거나 되돌린다. restore는 값이 말이 안 되면(깨진 세이브) false를 돌려주고 아무것도 바꾸지 않는다.
+    struct snapshot
+    {
+        difficulty diff = difficulty::EASY;
+        int32_t money = 0;
+        int level = 0;
+        int tickets = 0;
+        bn::array<int16_t, material_count> materials = {};
+        bn::vector<int8_t, max_stored_swords> stored_swords;
+    };
+
+    [[nodiscard]] snapshot take_snapshot() const;
+    [[nodiscard]] bool restore(const snapshot& state);
+
 #ifdef HS_DEBUG
     // 테스트용: 돈 $100,000, 방지권 5장, 잡템 각 5개, 보관 검 +19 ×1·+21 ×2·+22 ×1
     void debug_grant();

@@ -19,6 +19,8 @@
 #include "bn_time.h"
 #include "bn_vector.h"
 
+#include "save.h"
+
 #include "bn_regular_bg_items_forge_bg.h"
 #include "bn_regular_bg_items_title_day.h"
 #include "bn_regular_bg_items_title_night.h"
@@ -276,8 +278,8 @@ void set_sprites_palette(bn::ivector<bn::sprite_ptr>& sprites, const bn::sprite_
     }
 }
 
-// 타이틀 그림은 하루 24시간을 8시간씩 셋으로 나눠 바꾼다 (카트리지 RTC 시계 기준)
-// 낮 06~14시, 노을 14~22시, 밤 22~06시. 시계가 없으면 낮.
+// 타이틀 그림은 하루를 셋으로 나눠 바꾼다 (카트리지 RTC 시계 기준)
+// 낮 06~16시, 노을 16~21시, 밤 21~06시. 시계가 없으면 낮.
 const bn::regular_bg_item& title_item_for_now()
 {
     if(bn::time::active())
@@ -286,12 +288,12 @@ const bn::regular_bg_item& title_item_for_now()
         {
             int hour = now->hour();
 
-            if(hour >= 6 && hour < 14)
+            if(hour >= 6 && hour < 16)
             {
                 return bn::regular_bg_items::title_day;
             }
 
-            if(hour >= 14 && hour < 22)
+            if(hour >= 16 && hour < 21)
             {
                 return bn::regular_bg_items::title_sunset;
             }
@@ -561,6 +563,7 @@ enum class forge_exit
     FURNACE,    // R (화구: 잡템 조합)
     SWORDS,     // ← (창고)
     BAG,        // ↓ (잡화)
+    PAUSE,      // START (일시정지 메뉴)
 };
 
 constexpr int hammer_frames = 40;
@@ -1003,8 +1006,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 fade_screen(false);
                 return forge_exit::BAG;
             }
-#ifdef HS_DEBUG
             else if(bn::keypad::start_pressed())
+            {
+                fade_screen(false);
+                return forge_exit::PAUSE;
+            }
+#ifdef HS_DEBUG
+            else if(bn::keypad::up_pressed())
             {
                 eco.debug_grant();
                 message_text("DEBUG +$100,000");
@@ -1526,6 +1534,366 @@ void run_crafting(hs::economy& eco)
     fade_screen(false);
 }
 
+// ─── 슬롯 목록 (일시정지 Save / 타이틀 불러오기 공통) ─────────────────
+
+// "SLOT 1  STORY +13  $1.3K" 또는 "SLOT 1  비어 있음"
+bn::string<48> slot_label(int slot)
+{
+    hs::save::slot_info info = hs::save::info(slot);
+    bn::string<48> line("SLOT ");
+    line += bn::to_string<4>(slot + 1);
+    line += "  ";
+
+    if(! info.used)
+    {
+        line += "비어 있음";
+        return line;
+    }
+
+    line += info.diff == hs::difficulty::HARD ? "HARD +" : "STORY +";
+    line += bn::to_string<4>(info.level);
+    line += "  ";
+    line += format_money_short(info.money);
+    return line;
+}
+
+// 슬롯 3줄(with_new면 맨 위에 "NEW GAME" 한 줄 더)을 그리고, 고른 줄만 위아래로 흔든다.
+// 줄 번호는 with_new일 때 0 = NEW GAME, 1~3 = 슬롯 1~3, 아니면 0~2 = 슬롯 1~3.
+class slot_list
+{
+
+public:
+    slot_list(bn::sprite_text_generator& center_generator, int top_y, int step_y, bool with_new = false) :
+        _generator(center_generator),
+        _top_y(top_y),
+        _step_y(step_y),
+        _first_slot_line(with_new ? 1 : 0)
+    {
+        refresh();
+    }
+
+    [[nodiscard]] int line_count() const { return _first_slot_line + hs::save::slot_count; }
+
+    void refresh()
+    {
+        if(_first_slot_line > 0)
+        {
+            _lines[0].clear();
+            _generator.generate(0, _top_y, "NEW GAME", _lines[0]);
+        }
+
+        for(int slot = 0; slot < hs::save::slot_count; ++slot)
+        {
+            bn::ivector<bn::sprite_ptr>& line = _lines[_first_slot_line + slot];
+            line.clear();
+            _generator.generate(0, _top_y + (_first_slot_line + slot) * _step_y, slot_label(slot), line);
+        }
+    }
+
+    void set_visible(bool visible)
+    {
+        for(bn::ivector<bn::sprite_ptr>& sprites : _lines)
+        {
+            for(bn::sprite_ptr& sprite : sprites)
+            {
+                sprite.set_visible(visible);
+            }
+        }
+    }
+
+    void animate(int selected, int frame)
+    {
+        for(int line = 0; line < line_count(); ++line)
+        {
+            int offset = line == selected && (frame / 8) % 2 == 1 ? -2 : 0;
+
+            for(bn::sprite_ptr& sprite : _lines[line])
+            {
+                sprite.set_y(_top_y + line * _step_y + offset);
+            }
+        }
+    }
+
+private:
+    bn::sprite_text_generator& _generator;
+    int _top_y;
+    int _step_y;
+    int _first_slot_line;
+    bn::vector<bn::sprite_ptr, 40> _lines[1 + hs::save::slot_count];
+};
+
+// ─── 일시정지 메뉴 (START) ───────────────────────────────────────────
+
+enum class pause_choice
+{
+    RESUME,
+    QUIT,
+};
+
+// PAUSE 글자는 고정, Resume / Save / Quit은 ↑↓로 고르고 고른 줄이 위아래로 흔들린다.
+// Save는 슬롯 3개 중 하나를 골라 저장한다. 이미 저장된 슬롯은 덮어쓸지 한 번 묻는다.
+pause_choice run_pause(const hs::economy& eco)
+{
+    constexpr int item_count = 3;
+    constexpr const char* item_names[item_count] = { "Resume", "Save", "Quit" };
+    constexpr int title_y = -44;
+    constexpr int top_y = -8;
+    constexpr int step_y = 20;
+    constexpr const char* default_hint = "A 선택  B 돌아가기";
+
+    bn::sprite_text_generator center_generator(hs::font);
+    center_generator.set_center_alignment();
+
+    bn::sprite_text_generator left_generator(hs::font);
+    left_generator.set_left_alignment();
+
+    bn::vector<bn::sprite_ptr, 8> title_sprites;
+    center_generator.generate(0, title_y, "PAUSE", title_sprites);
+
+    bn::vector<bn::sprite_ptr, 12> item_sprites[item_count];
+
+    for(int index = 0; index < item_count; ++index)
+    {
+        center_generator.generate(0, top_y + index * step_y, item_names[index], item_sprites[index]);
+    }
+
+    slot_list slots(center_generator, top_y, step_y);
+    slots.set_visible(false);
+    text_line footer_text(left_generator, -114, 68);
+
+    bool slot_screen = false;
+    bool confirming = false;     // 덮어쓰기 확인 중
+    int selected = 0;
+    int slot = 0;
+    int frame = 0;
+    int notice = 0;
+
+    auto show_items = [&](bool visible)
+    {
+        for(bn::ivector<bn::sprite_ptr>& sprites : item_sprites)
+        {
+            for(bn::sprite_ptr& sprite : sprites)
+            {
+                sprite.set_visible(visible);
+            }
+        }
+    };
+
+    auto animate_items = [&]()
+    {
+        for(int index = 0; index < item_count; ++index)
+        {
+            int offset = index == selected && (frame / 8) % 2 == 1 ? -2 : 0;
+
+            for(bn::sprite_ptr& sprite : item_sprites[index])
+            {
+                sprite.set_y(top_y + index * step_y + offset);
+            }
+        }
+    };
+
+    auto save_to_slot = [&]()
+    {
+        hs::save::write(slot, eco);
+        slots.refresh();
+        footer_text.set_text("저장했다!");
+        notice = notice_frames;
+    };
+
+    footer_text.set_text(default_hint);
+    fade_screen(true);
+
+    while(true)
+    {
+        ++frame;
+
+        if(! slot_screen)
+        {
+            if(bn::keypad::up_pressed())
+            {
+                selected = (selected + item_count - 1) % item_count;
+                frame = 8;
+            }
+            else if(bn::keypad::down_pressed())
+            {
+                selected = (selected + 1) % item_count;
+                frame = 8;
+            }
+            else if(bn::keypad::start_pressed() || bn::keypad::b_pressed())
+            {
+                fade_screen(false);
+                return pause_choice::RESUME;
+            }
+            else if(bn::keypad::a_pressed())
+            {
+                if(selected == 0)
+                {
+                    fade_screen(false);
+                    return pause_choice::RESUME;
+                }
+
+                if(selected == 1)
+                {
+                    slot_screen = true;
+                    slot = 0;
+                    frame = 8;
+                    show_items(false);
+                    slots.set_visible(true);
+                }
+                else
+                {
+                    fade_screen(false);
+                    return pause_choice::QUIT;
+                }
+            }
+
+            animate_items();
+        }
+        else if(confirming)
+        {
+            if(bn::keypad::a_pressed())
+            {
+                confirming = false;
+                save_to_slot();
+            }
+            else if(bn::keypad::b_pressed())
+            {
+                confirming = false;
+                footer_text.set_text(default_hint);
+            }
+
+            slots.animate(slot, frame);
+        }
+        else
+        {
+            if(bn::keypad::up_pressed())
+            {
+                slot = (slot + hs::save::slot_count - 1) % hs::save::slot_count;
+                frame = 8;
+            }
+            else if(bn::keypad::down_pressed())
+            {
+                slot = (slot + 1) % hs::save::slot_count;
+                frame = 8;
+            }
+            else if(bn::keypad::b_pressed())
+            {
+                slot_screen = false;
+                slots.set_visible(false);
+                show_items(true);
+                footer_text.set_text(default_hint);
+                notice = 0;
+            }
+            else if(bn::keypad::a_pressed())
+            {
+                if(hs::save::info(slot).used)
+                {
+                    confirming = true;
+                    footer_text.set_text("덮어쓸까요?  A 예  B 아니오");
+                    notice = 0;
+                }
+                else
+                {
+                    save_to_slot();
+                }
+            }
+
+            if(notice > 0 && --notice == 0)
+            {
+                footer_text.set_text(default_hint);
+            }
+
+            slots.animate(slot, frame);
+        }
+
+        bn::core::update();
+    }
+}
+
+// ─── 시작 화면: NEW GAME / 저장 슬롯 (타이틀에서 STORY·HARD를 고른 뒤) ────
+
+enum class start_result
+{
+    NEW_GAME,   // 새로 시작 (STORY는 오프닝 컷씬부터)
+    LOADED,     // 슬롯을 불러옴 (바로 강화 화면으로)
+    BACK,       // 타이틀로
+};
+
+// 맨 위 NEW GAME과 슬롯 3개를 보여 준다. 슬롯을 고르면 eco에 불러오고 seed를 새로 정한다.
+start_result run_start_select(hs::economy& eco, unsigned& seed)
+{
+    constexpr int title_y = -54;
+    constexpr int top_y = -30;
+    constexpr int step_y = 18;
+    constexpr const char* default_hint = "A 선택  B 돌아가기";
+
+    bn::sprite_text_generator center_generator(hs::font);
+    center_generator.set_center_alignment();
+
+    bn::sprite_text_generator left_generator(hs::font);
+    left_generator.set_left_alignment();
+
+    bn::vector<bn::sprite_ptr, 8> title_sprites;
+    center_generator.generate(0, title_y, "START", title_sprites);
+
+    slot_list list(center_generator, top_y, step_y, true);
+    text_line footer_text(left_generator, -114, 68);
+
+    int selected = 0;
+    unsigned frame = 0;
+    int notice = 0;
+
+    footer_text.set_text(default_hint);
+    fade_screen(true);
+
+    while(true)
+    {
+        ++frame;
+
+        if(bn::keypad::up_pressed())
+        {
+            selected = (selected + list.line_count() - 1) % list.line_count();
+            frame = 8;
+        }
+        else if(bn::keypad::down_pressed())
+        {
+            selected = (selected + 1) % list.line_count();
+            frame = 8;
+        }
+        else if(bn::keypad::b_pressed())
+        {
+            fade_screen(false);
+            return start_result::BACK;
+        }
+        else if(bn::keypad::a_pressed())
+        {
+            if(selected == 0)
+            {
+                fade_screen(false);
+                return start_result::NEW_GAME;
+            }
+
+            if(hs::save::load(selected - 1, eco))
+            {
+                seed = frame;
+                fade_screen(false);
+                return start_result::LOADED;
+            }
+
+            footer_text.set_text("비어 있는 슬롯이다");
+            notice = notice_frames;
+        }
+
+        if(notice > 0 && --notice == 0)
+        {
+            footer_text.set_text(default_hint);
+        }
+
+        list.animate(selected, int(frame));
+        bn::core::update();
+    }
+}
+
 // ─── 오프닝 컷씬 ─────────────────────────────────────────────────────
 // 그림은 assets/graphics/cutscene/ → tools/make_cutscenes.py가 graphics/로 변환 (240x112, 위쪽)
 // 아래 48줄은 텍스트 박스: 화자 1줄 + 대사 2줄. 대사는 자동 줄바꿈하고 2줄을 넘으면 assert.
@@ -1702,56 +2070,73 @@ int main()
     bn::core::init();
     run_splash();
 
+    while(true)     // 일시정지 메뉴의 Quit이 타이틀로 돌아오는 바깥 고리
+    {
 #ifdef HS_DEBUG
-    constexpr bool hard_unlocked = true;
+        const bool hard_unlocked = true;
 #else
-    constexpr bool hard_unlocked = false;   // 스토리 클리어 시 해금 (세이브 연동은 나중에)
+        const bool hard_unlocked = hs::save::hard_unlocked();   // 스토리 클리어 시 hs::save::unlock_hard() (엔딩과 함께 연결 예정)
 #endif
 
-    unsigned seed = 0;
-    title_choice choice = run_title(hard_unlocked, seed);
+        unsigned seed = 0;
+        title_choice choice = run_title(hard_unlocked, seed);
 
-    // STORY = 이지(오프닝 컷씬부터), HARD = 하드 (스토리 클리어 후 해금)
-    if(choice == title_choice::STORY)
-    {
-        run_opening_cutscene();
-    }
+        hs::economy eco(choice == title_choice::HARD ? hs::difficulty::HARD : hs::difficulty::EASY);
 
-    hs::economy eco(choice == title_choice::STORY ? hs::difficulty::EASY : hs::difficulty::HARD);
-    bn::seed_random random(seed);
-    bn::string_view message = "";
+        // NEW GAME / 저장 슬롯을 고른다. 불러오면 컷씬 없이 바로 시작하고, NEW GAME은 STORY만 오프닝 컷씬부터.
+        start_result start = run_start_select(eco, seed);
+        bn::core::update();     // 시작 화면의 스프라이트 타일을 먼저 비운다
 
-    while(true)
-    {
-        forge_exit exit = run_forge(eco, random, message);
-        message = "";
-
-        // 스프라이트 타일은 한 프레임 업데이트가 지나야 반환된다. 강화 화면이 타일을 많이 쓰므로 다음 화면 전에 비운다.
-        bn::core::update();
-
-        switch(exit)
+        if(start == start_result::BACK)
         {
-
-        case forge_exit::SHOP:
-            run_shop(eco, random);
-            break;
-
-        case forge_exit::SWORDS:
-            run_storage(eco, true);
-            break;
-
-        case forge_exit::BAG:
-            run_storage(eco, false);
-            break;
-
-        case forge_exit::FURNACE:
-            run_crafting(eco);
-            break;
-
-        default:
-            break;
+            continue;       // 타이틀로
         }
 
-        bn::core::update();
+        if(start == start_result::NEW_GAME && choice == title_choice::STORY)
+        {
+            run_opening_cutscene();
+        }
+
+        bn::seed_random random(seed);
+        bn::string_view message = "";
+        bool quit = false;
+
+        while(! quit)
+        {
+            forge_exit exit = run_forge(eco, random, message);
+            message = "";
+
+            // 스프라이트 타일은 한 프레임 업데이트가 지나야 반환된다. 강화 화면이 타일을 많이 쓰므로 다음 화면 전에 비운다.
+            bn::core::update();
+
+            switch(exit)
+            {
+
+            case forge_exit::SHOP:
+                run_shop(eco, random);
+                break;
+
+            case forge_exit::SWORDS:
+                run_storage(eco, true);
+                break;
+
+            case forge_exit::BAG:
+                run_storage(eco, false);
+                break;
+
+            case forge_exit::FURNACE:
+                run_crafting(eco);
+                break;
+
+            case forge_exit::PAUSE:
+                quit = run_pause(eco) == pause_choice::QUIT;
+                break;
+
+            default:
+                break;
+            }
+
+            bn::core::update();
+        }
     }
 }

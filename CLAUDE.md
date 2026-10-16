@@ -32,7 +32,7 @@ make -j8
 - `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡혀야 한다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
-- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 START로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
+- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 ↑로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
 - cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
 
 ### mGBA
@@ -50,7 +50,7 @@ make -j8
 - 타이틀 메뉴: 아이콘 한 줄(가운데 HARD, 양옆 STORY·OPTION, 이름은 아이콘 아래). 아이콘은 `assets/graphics/title/title_menu_icons.webp` → `tools/make_title_icons.py`(수동 실행, 32px). ←/→로 고르고 A·START로 결정. 고른 것만 밝고 위아래로 흔들림. 잠긴 HARD는 흑백이고 고를 수는 있지만 누르면 "HARD - LOCKED".
 - 타이틀 음악: `assets/audio/title_chiptune.wav`(8bit 모노, 18157Hz) → `tools/make_music.py`가 빌드 때 `audio/title_chiptune.xm`(샘플 전체 forward loop)으로 변환. 타이틀 시작 때 `bn::music_items::title_chiptune.play(1)`, 메뉴를 고르면 페이드와 함께 볼륨을 줄이고 `bn::music::stop()`. wav를 `dmg_audio/`에 넣으면 안 됨(그 폴더는 DMG 사운드용). 곡을 더 넣을 땐 `assets/audio/`에 wav를 두면 같은 방식으로 변환된다. 원곡이 있다면 배포 전 사용 허가 확인.
 - 컷씬 음악: `assets/audio/story_chiptune_sad.wav`(같은 방식으로 XM 변환). 오프닝 컷씬이 시작할 때 재생해 반복하고, 마지막 장면의 페이드 아웃과 함께 끈다(HARD는 컷씬이 없어 음악 없음).
-- 타이틀 그림은 RTC 시각으로 낮(06~14)/노을(14~22)/밤(22~06). 시계가 없으면 낮.
+- 타이틀 그림은 RTC 시각으로 낮(06~16)/노을(16~21)/밤(21~06). 시계가 없으면 낮.
 - 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것 (원본 6색).
 - 난수 시드는 타이틀에서 메뉴를 고른 프레임 수.
 
@@ -84,7 +84,9 @@ make -j8
 - 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색(예: 모루의 밝은 파란색)을 다른 색과 합쳐 버린다.
 
 ## 정해 둔 것 / 미정
-- 세이브는 +29 엔딩을 먼저 만든 뒤, 진행 상황 + HARD 해금 플래그를 같이 만들기로 했다.
+- 세이브(SRAM 3슬롯 + HARD 해금 머리글)는 구현됨: `include/save.h`, `src/save.cpp`. 강화 화면 START → 일시정지(Resume/Save/Quit), 타이틀에서 STORY/HARD를 고르면 START 화면(NEW GAME + 슬롯 3개, `run_start_select`)이 열린다. NEW GAME만 STORY 컷씬을 보고 슬롯은 바로 시작. 저장 항목은 `economy::take_snapshot()/restore()`. HARD 해금(`unlock_hard()`)은 +29 엔딩 때 연결한다. 테스트하면 ROM 옆에 `hookedsmith.sav`가 생긴다.
+- 강화 화면에서 SELECT 도움말이 켜져 있으면 START가 일시정지를 열지 않는다.
+- computer-use로 mGBA를 조작할 때 포커스가 바탕화면(ShellExperienceHost)에 잡혀 입력이 막히는 일이 있다. AppActivate를 반복해도 안 풀리면 mGBA를 모두 끄고 처음부터 다시 띄운다.
 - 영어 지원(OPTION에서 Language 전환 예정) 검토 결과: 가능하지만 준비가 필요하다.
   - 한글 문자열이 코드에 박혀 있고(81개+), 한국어 어순으로 조각을 이어 붙이는 문장이 있다 → 언어별 문자열 표 + 문장 틀로 바꿔야 한다.
   - 영어가 더 길어서 넘치는 곳: 아이콘 사이 메시지 줄, 왼쪽 정보 줄, 창고·조합소 잡템 이름 칸.
@@ -94,7 +96,7 @@ make -j8
 
 ## 다음 작업 (칼 이미지 교체 포함)
 1. +29 엔딩
-2. 세이브 (난이도, 돈, 단계, 방지권, 잡템, 보관 검, HARD 해금, 나중에 언어)
+2. 세이브 남은 것: 언어 저장, 슬롯 삭제
 3. 문자열 표 (영어 지원 준비)
 4. 재료 강화 밸런스 확인 (+21~+27 필요 재료 수급 경로, 보관함 8칸이 모자라지 않는지)
 5. OPTION 항목 (Language 등)
