@@ -6,6 +6,8 @@
 #include "bn_sprite_palettes.h"
 #include "bn_color.h"
 #include "bn_fixed.h"
+#include "bn_fixed_point.h"
+#include "bn_optional.h"
 #include "bn_keypad.h"
 #include "bn_music.h"
 #include "bn_music_items.h"
@@ -73,6 +75,7 @@
 #include "bn_sprite_items_sword_27.h"
 #include "bn_sprite_items_sword_28.h"
 #include "bn_sprite_items_sword_29.h"
+#include "bn_sprite_items_shard.h"
 #include "economy.h"
 #include "common_variable_8x8_sprite_font.h"
 #include "hs_font.h"
@@ -548,7 +551,15 @@ enum class phase
     SUCCESS,
     FAIL,
     PROTECT_ASK,
+    RESTORE,    // 방지권으로 지킨 뒤 금이 사라지고 원래 검으로 돌아온다
+    BREAK,      // 검이 두 동강 나 흩어진다
 };
+
+// 검 스프라이트 프레임 (tools/make_swords.py가 한 장에 4개를 만든다)
+constexpr int frame_whole = 0;
+constexpr int frame_cracked = 1;
+constexpr int frame_upper = 2;
+constexpr int frame_lower = 3;
 
 enum class forge_exit
 {
@@ -563,6 +574,11 @@ enum class forge_exit
 constexpr int hammer_frames = 40;
 constexpr int success_frames = 24;
 constexpr int fail_frames = 24;
+constexpr int crack_frame = 12;         // 실패 떨림 도중 금이 가는 프레임
+constexpr int restore_frames = 16;      // 방지권으로 지킨 뒤 금이 사라지며 번쩍이는 시간
+constexpr int break_frames = 36;        // 검이 부서져 흩어지는 시간
+constexpr int shard_frames = 28;        // 파편이 보이는 시간
+constexpr int shard_count = 4;
 // 검(그림 53줄)은 화면 y 40부터(성공률 줄 아래), 모루(tools/make_anvil.py, 60x34)는 검 폼멜 바로 아래 y 92부터
 constexpr int sword_y = -8;
 constexpr int anvil_y = 44;
@@ -746,6 +762,9 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     phase current_phase = phase::IDLE;
     int phase_frame = 0;
     bool upgrade_succeeded = false;     // 판정은 바로 하고, 결과는 망치질이 끝난 뒤 보여준다
+#ifdef HS_DEBUG
+    bool debug_force_fail = false;
+#endif
 
     // SELECT 도움말: 배경·검·모루는 흑백, 아이콘은 컬러로 두고 아이콘 가운데에 이름을 쓴다.
     // 버튼을 누르고 있는 동안만 위쪽 가운데에 설명이 나온다.
@@ -913,6 +932,47 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     };
 
     eco.set_time_penalty(hs::time_penalty_pct(hs::current_time_band()));
+    // 검이 부서질 때: 두 동강 + 파편 몇 개 (조각 그림은 검 스프라이트의 프레임 2·3, 파편은 shard)
+    bn::optional<bn::sprite_ptr> piece_upper;
+    bn::optional<bn::sprite_ptr> piece_lower;
+    bn::vector<bn::sprite_ptr, shard_count> shards;
+    bn::fixed_point upper_position, lower_position, upper_velocity, lower_velocity;
+    bn::fixed_point shard_position[shard_count];
+    bn::fixed_point shard_velocity[shard_count];
+
+    auto start_break = [&]()
+    {
+        current_phase = phase::BREAK;
+        phase_frame = 0;
+
+        const bn::sprite_item& item = *sword_items[sword_level];
+        sword.set_x(0);
+        sword.set_visible(false);
+        sword_palette.set_fade(bn::color(31, 31, 31), 0);
+
+        upper_position = bn::fixed_point(0, sword_y);
+        lower_position = bn::fixed_point(0, sword_y);
+        upper_velocity = bn::fixed_point(-1.2, -2.2);      // 위쪽 조각은 왼쪽 위로 튀고
+        lower_velocity = bn::fixed_point(0.8, -0.8);       // 아래쪽 조각은 살짝 오른쪽으로 떨어진다
+        piece_upper = item.create_sprite(upper_position, frame_upper);
+        piece_lower = item.create_sprite(lower_position, frame_lower);
+
+        // 파편은 금 간 자리(검 한가운데 조금 위)에서 사방으로
+        constexpr bn::fixed_point crack_center(0, sword_y - 4);
+        constexpr bn::fixed_point shard_start_velocity[shard_count] = {
+            bn::fixed_point(-1.6, -2.4), bn::fixed_point(1.5, -2.8), bn::fixed_point(-0.7, -1.5), bn::fixed_point(1.9, -1.3)
+        };
+
+        shards.clear();
+
+        for(int index = 0; index < shard_count; ++index)
+        {
+            shard_position[index] = crack_center;
+            shard_velocity[index] = shard_start_velocity[index];
+            shards.push_back(bn::sprite_items::shard.create_sprite(crack_center));
+        }
+    };
+
     refresh_status();
     message_text(first_message);
     refresh_status();
@@ -984,6 +1044,12 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 else
                 {
                     eco.set_time_penalty(hs::time_penalty_pct(hs::current_time_band()));    // 판정 순간의 시계로
+#ifdef HS_DEBUG
+                    if(debug_force_fail)
+                    {
+                        eco.set_time_penalty(100);      // 성공률 0%
+                    }
+#endif
                     upgrade_succeeded = eco.upgrade(random);
                     current_phase = phase::HAMMERING;
                     phase_frame = 0;
@@ -1009,6 +1075,14 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 if(eco.level() != 0)
                 {
+#ifdef HS_DEBUG
+                    if(bn::keypad::r_pressed())
+                    {
+                        debug_force_fail = ! debug_force_fail;      // +1 이상에서 R: 다음 강화를 무조건 실패시키는 스위치
+                        message_text(debug_force_fail ? "DEBUG FAIL ON" : "DEBUG FAIL OFF");
+                    }
+                    else
+#endif
                     message_text("+0일 때만 갈 수 있다");
                 }
                 else
@@ -1095,6 +1169,17 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             ++phase_frame;
             sword.set_x(phase_frame >= fail_frames ? 0 : ((phase_frame / 2) % 2 == 0 ? -3 : 3));
 
+            // 절반쯤에서 "빠직": 오른쪽 위에서 왼쪽 아래로 금이 가며 번쩍인다
+            if(phase_frame == crack_frame)
+            {
+                sword.set_item(*sword_items[sword_level], frame_cracked);
+            }
+
+            if(phase_frame >= crack_frame)
+            {
+                sword_palette.set_fade(bn::color(31, 31, 31), bn::fixed(fail_frames - phase_frame) / (fail_frames - crack_frame));
+            }
+
             if(phase_frame >= fail_frames)
             {
                 if(eco.can_protect())
@@ -1103,13 +1188,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     ask_line += bn::to_string<4>(eco.row().protect_cost);
                     ask_line += "장 쓸까?";
                     message_text(ask_line);
-                    message_timer = -1;     // 답할 때까지 유지
+                    message_timer = -1;     // 답할 때까지 유지 (금 간 검을 그대로 둔다)
                     chance_text.set_text("A 쓴다  B 안 쓴다");
                     current_phase = phase::PROTECT_ASK;
                 }
                 else
                 {
-                    destroy_sword();
+                    start_break();
                 }
             }
             break;
@@ -1118,13 +1203,57 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             if(bn::keypad::a_pressed())
             {
                 eco.protect();
-                current_phase = phase::IDLE;
+                current_phase = phase::RESTORE;
+                phase_frame = 0;
+                sword.set_item(*sword_items[sword_level], frame_whole);     // 금이 사라지고 번쩍
+                sword_palette.set_fade(bn::color(31, 31, 31), 1);
                 message_text("방지권으로 지켰다");
                 refresh_status();
             }
             else if(bn::keypad::b_pressed())
             {
-                destroy_sword();
+                start_break();
+            }
+            break;
+
+        case phase::RESTORE:
+            ++phase_frame;
+            sword_palette.set_fade(bn::color(31, 31, 31), bn::fixed(restore_frames - phase_frame) / restore_frames);
+
+            if(phase_frame >= restore_frames)
+            {
+                current_phase = phase::IDLE;
+                refresh_status();
+            }
+            break;
+
+        case phase::BREAK:
+            ++phase_frame;
+            upper_velocity += bn::fixed_point(0, 0.22);
+            lower_velocity += bn::fixed_point(0, 0.3);
+            upper_position += upper_velocity;
+            lower_position += lower_velocity;
+            piece_upper->set_position(upper_position);
+            piece_upper->set_rotation_angle(bn::fixed(360) - phase_frame * 3);      // 위쪽 조각은 왼쪽으로 돌며
+            piece_lower->set_position(lower_position);
+            piece_lower->set_rotation_angle(phase_frame * 2);                       // 아래쪽 조각은 오른쪽으로 돈다
+
+            for(int index = 0; index < shards.size(); ++index)
+            {
+                shard_velocity[index] += bn::fixed_point(0, 0.25);
+                shard_position[index] += shard_velocity[index];
+                shards[index].set_position(shard_position[index]);
+                shards[index].set_visible(phase_frame < shard_frames);
+            }
+
+            if(phase_frame >= break_frames)
+            {
+                piece_upper.reset();
+                piece_lower.reset();
+                shards.clear();
+                sword.set_item(*sword_items[sword_level], frame_whole);
+                sword.set_visible(true);
+                destroy_sword();        // 다음 검(+0)이 나오고 파괴 메시지·잡템이 뜬다
             }
             break;
 

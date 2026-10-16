@@ -3,6 +3,10 @@
 assets/graphics/swords/sword_NN_name.png (32x64, 4bpp 인덱스, 투명이 0번, 16색 이하)를
 Butano(grit)가 읽는 graphics/sword_NN.bmp(+json)로 바꾼다. 검마다 팔레트가 따로다.
 그림은 y 0~52, x 7~24 안에 그린다 (강화 화면에서 검 끝 y 40, 맨 아래 줄이 모루 윗면과 겹침).
+
+실패 연출용으로 한 장에 프레임 4개(세로로 쌓음)를 만든다. 그림을 바꿔도 자동으로 다시 만들어진다.
+  0 = 원래 검, 1 = 금 간 검(오른쪽 위에서 왼쪽 아래로 지그재그 틈), 2 = 위쪽 조각, 3 = 아래쪽 조각
+조각선은 검의 실제 그림 범위(투명이 아닌 점)에 맞춰 정한다. 부서질 때 날아가는 파편은 shard 스프라이트.
 """
 
 import glob
@@ -21,6 +25,73 @@ OUT_DIR = os.path.join(ROOT, 'graphics')
 WIDTH = 32
 HEIGHT = 64
 SWORD_COUNT = 30
+
+
+FRAME_COUNT = 4
+JITTER = (0, 1, 0, -1)      # 금이 곧은 선이 아니라 빠직 갈라진 모양이 되도록 x마다 위아래로 흔든다
+
+
+def crack_line(pixels):
+    """검 그림 범위에 맞춘 조각선: x -> y. 오른쪽 위에서 왼쪽 아래로 내려간다."""
+    points = [(x, y) for y in range(HEIGHT) for x in range(WIDTH) if pixels[x, y] != 0]
+
+    if not points:
+        return lambda x: HEIGHT / 2
+
+    x0 = min(x for x, _ in points)
+    x1 = max(x for x, _ in points)
+    y0 = min(y for _, y in points)
+    y1 = max(y for _, y in points)
+    height = y1 - y0
+    top = y0 + 0.25 * height        # 오른쪽 끝(검 오른쪽 가장자리)에서의 높이
+    bottom = y0 + 0.65 * height     # 왼쪽 끝에서의 높이
+    span = max(1, (x1 + 1) - (x0 - 1))
+
+    def line(x):
+        t = ((x1 + 1) - x) / span   # 오른쪽 0 → 왼쪽 1
+        return top + (bottom - top) * t + JITTER[x % len(JITTER)]
+
+    return line
+
+
+def build_frames(image):
+    """원래 그림 → 32x(64*4) 프레임 세트 (같은 팔레트)"""
+    pixels = image.load()
+    line = crack_line(pixels)
+    sheet = Image.new('P', (WIDTH, HEIGHT * FRAME_COUNT), 0)
+    sheet.putpalette(image.getpalette())
+    out = sheet.load()
+
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            value = pixels[x, y]
+
+            if value == 0:
+                continue
+
+            offset = y - line(x)
+            out[x, y] = value                                   # 0: 원래 검
+            out[x, HEIGHT + y] = 0 if abs(offset) < 1.0 else value      # 1: 금 간 검 (틈은 투명)
+            if offset < -0.5:                                   # 2: 위쪽 조각
+                out[x, HEIGHT * 2 + y] = value
+            elif offset > 0.5:                                  # 3: 아래쪽 조각
+                out[x, HEIGHT * 3 + y] = value
+
+    return sheet
+
+
+def write_shard():
+    """부서질 때 흩어지는 8x8 파편 (흰색 삼각 조각)"""
+    image = Image.new('P', (8, 8), 0)
+    image.putpalette([0, 0, 0, 255, 255, 255, 200, 200, 210] + [0] * (16 * 3 - 9))
+    shape = {(3, 1): 1, (4, 1): 1, (2, 2): 1, (3, 2): 1, (4, 2): 1, (5, 2): 2, (2, 3): 1, (3, 3): 1, (4, 3): 2,
+             (5, 3): 2, (3, 4): 1, (4, 4): 2, (5, 4): 2, (4, 5): 2, (5, 5): 2}
+    for (x, y), value in shape.items():
+        image.putpixel((x, y), value)
+
+    palette = [(0, 0, 0), (248, 248, 248), (200, 200, 208)] + [(0, 0, 0)] * 13
+    write_if_changed(os.path.join(OUT_DIR, 'shard.bmp'), write_bmp_4bpp(None, image, palette))
+    write_if_changed(os.path.join(OUT_DIR, 'shard.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
 
 
 def convert(path, level):
@@ -43,7 +114,8 @@ def convert(path, level):
     palette = [tuple(channel & 0xF8 for channel in color) for color in palette[:16]]
 
     name = 'sword_%02d' % level
-    write_if_changed(os.path.join(OUT_DIR, name + '.bmp'), write_bmp_4bpp(None, image, palette))
+    sheet = build_frames(image)
+    write_if_changed(os.path.join(OUT_DIR, name + '.bmp'), write_bmp_4bpp(None, sheet, palette))
     write_if_changed(os.path.join(OUT_DIR, name + '.json'), '{\n    "type": "sprite",\n    "height": %d\n}\n' % HEIGHT)
 
 
@@ -64,6 +136,7 @@ def main():
     for level in range(SWORD_COUNT):
         convert(found[level], level)
 
+    write_shard()
     return 0
 
 
