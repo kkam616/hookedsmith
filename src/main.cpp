@@ -23,6 +23,7 @@
 #include "time_band.h"
 
 #include "bn_regular_bg_items_forge_bg.h"
+#include "bn_regular_bg_items_gameover_bg.h"
 #include "bn_regular_bg_items_title_day.h"
 #include "bn_regular_bg_items_title_night.h"
 #include "bn_regular_bg_items_title_sunset.h"
@@ -1932,17 +1933,9 @@ void run_game_over()
     bn::sprite_text_generator center_generator(hs::font);
     center_generator.set_center_alignment();
 
-    bn::sprite_palette_ptr red_tint = create_tinted_font_palette(bn::color(31, 7, 7));
-
-    text_line title_text(center_generator, 0, -30);
-    text_line reason_line_1(center_generator, 0, -4);
-    text_line reason_line_2(center_generator, 0, 12);
-    text_line prompt_text(center_generator, 0, 52);
-
-    title_text.set_text("GAME OVER");
-    title_text.set_palette(red_tint);
-    reason_line_1.set_text("더 이상 할 수 있는 게");
-    reason_line_2.set_text("남아 있지 않다...");
+    // 그림(assets/graphics/gameover → tools/make_gameover.py)에 GAME OVER 간판이 그려져 있어 글자는 안내 한 줄뿐
+    bn::regular_bg_ptr background = bn::regular_bg_items::gameover_bg.create_bg(title_bg_x, title_bg_y);
+    text_line prompt_text(center_generator, 0, 68);
 
     fade_screen(true);
 
