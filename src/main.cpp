@@ -29,6 +29,10 @@
 
 #include "bn_regular_bg_items_forge_bg.h"
 #include "bn_regular_bg_items_gameover_bg.h"
+#include "bn_regular_bg_items_menu_bg_shop.h"
+#include "bn_regular_bg_items_menu_bg_furnace.h"
+#include "bn_regular_bg_items_menu_bg_storage.h"
+#include "bn_regular_bg_items_menu_bg_bag.h"
 #include "bn_regular_bg_items_title_day.h"
 #include "bn_regular_bg_items_title_night.h"
 #include "bn_regular_bg_items_title_sunset.h"
@@ -81,6 +85,46 @@
 #include "bn_sprite_items_shard.h"
 #include "bn_sprite_items_spark.h"
 #include "bn_sprite_items_dust.h"
+#include "bn_sprite_items_ico_ticket.h"
+#include "bn_sprite_items_ico_scrap.h"
+#include "bn_sprite_items_ico_tau_bone.h"
+#include "bn_sprite_items_ico_faded_glow.h"
+#include "bn_sprite_items_ico_swiss_iron.h"
+#include "bn_sprite_items_ico_flame_hilt.h"
+#include "bn_sprite_items_ico_evil_soul.h"
+#include "bn_sprite_items_ico_axe_dust.h"
+#include "bn_sprite_items_ico_clear_matter.h"
+#include "bn_sprite_items_ico_warp.h"
+#include "bn_sprite_items_ico_sword_00.h"
+#include "bn_sprite_items_ico_sword_01.h"
+#include "bn_sprite_items_ico_sword_02.h"
+#include "bn_sprite_items_ico_sword_03.h"
+#include "bn_sprite_items_ico_sword_04.h"
+#include "bn_sprite_items_ico_sword_05.h"
+#include "bn_sprite_items_ico_sword_06.h"
+#include "bn_sprite_items_ico_sword_07.h"
+#include "bn_sprite_items_ico_sword_08.h"
+#include "bn_sprite_items_ico_sword_09.h"
+#include "bn_sprite_items_ico_sword_10.h"
+#include "bn_sprite_items_ico_sword_11.h"
+#include "bn_sprite_items_ico_sword_12.h"
+#include "bn_sprite_items_ico_sword_13.h"
+#include "bn_sprite_items_ico_sword_14.h"
+#include "bn_sprite_items_ico_sword_15.h"
+#include "bn_sprite_items_ico_sword_16.h"
+#include "bn_sprite_items_ico_sword_17.h"
+#include "bn_sprite_items_ico_sword_18.h"
+#include "bn_sprite_items_ico_sword_19.h"
+#include "bn_sprite_items_ico_sword_20.h"
+#include "bn_sprite_items_ico_sword_21.h"
+#include "bn_sprite_items_ico_sword_22.h"
+#include "bn_sprite_items_ico_sword_23.h"
+#include "bn_sprite_items_ico_sword_24.h"
+#include "bn_sprite_items_ico_sword_25.h"
+#include "bn_sprite_items_ico_sword_26.h"
+#include "bn_sprite_items_ico_sword_27.h"
+#include "bn_sprite_items_ico_sword_28.h"
+#include "bn_sprite_items_ico_sword_29.h"
 #include "economy.h"
 #include "common_variable_8x8_sprite_font.h"
 #include "hs_font.h"
@@ -90,6 +134,52 @@ namespace
 {
 
 // 검 그림 (tools/make_swords.py, +0~+29). 단계마다 따로 그려진 그림이고 팔레트도 따로다.
+// 목록 화면용 16x16 아이콘 (tools/make_item_icons.py, tools/make_sword_icons.py --write)
+// 잡템 아이콘 순서는 hs::material 순서와 같다 (낡은 고철, 타우 뼈, 바랜 빛, 스위스 철, 불꽃 자루, 악령 혼, 도끼 가루, 투명 물질)
+const bn::sprite_item* const material_icons[hs::material_count] = {
+    &bn::sprite_items::ico_scrap,
+    &bn::sprite_items::ico_tau_bone,
+    &bn::sprite_items::ico_faded_glow,
+    &bn::sprite_items::ico_swiss_iron,
+    &bn::sprite_items::ico_flame_hilt,
+    &bn::sprite_items::ico_evil_soul,
+    &bn::sprite_items::ico_axe_dust,
+    &bn::sprite_items::ico_clear_matter,
+};
+
+const bn::sprite_item* const sword_icons[hs::level_count] = {
+    &bn::sprite_items::ico_sword_00,
+    &bn::sprite_items::ico_sword_01,
+    &bn::sprite_items::ico_sword_02,
+    &bn::sprite_items::ico_sword_03,
+    &bn::sprite_items::ico_sword_04,
+    &bn::sprite_items::ico_sword_05,
+    &bn::sprite_items::ico_sword_06,
+    &bn::sprite_items::ico_sword_07,
+    &bn::sprite_items::ico_sword_08,
+    &bn::sprite_items::ico_sword_09,
+    &bn::sprite_items::ico_sword_10,
+    &bn::sprite_items::ico_sword_11,
+    &bn::sprite_items::ico_sword_12,
+    &bn::sprite_items::ico_sword_13,
+    &bn::sprite_items::ico_sword_14,
+    &bn::sprite_items::ico_sword_15,
+    &bn::sprite_items::ico_sword_16,
+    &bn::sprite_items::ico_sword_17,
+    &bn::sprite_items::ico_sword_18,
+    &bn::sprite_items::ico_sword_19,
+    &bn::sprite_items::ico_sword_20,
+    &bn::sprite_items::ico_sword_21,
+    &bn::sprite_items::ico_sword_22,
+    &bn::sprite_items::ico_sword_23,
+    &bn::sprite_items::ico_sword_24,
+    &bn::sprite_items::ico_sword_25,
+    &bn::sprite_items::ico_sword_26,
+    &bn::sprite_items::ico_sword_27,
+    &bn::sprite_items::ico_sword_28,
+    &bn::sprite_items::ico_sword_29,
+};
+
 const bn::sprite_item* const sword_items[hs::level_count] = {
     &bn::sprite_items::sword_00,
     &bn::sprite_items::sword_01,
@@ -711,6 +801,9 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     text_line name_rest_text(left_generator, 0, name_y);    // 이름의 나머지
     text_line chance_text(center_generator, 0, chance_y);
     text_line cost_text(center_generator, 0, cost_y);
+    // 재료로 내는 강화비(+21~+25, +27)는 "아이콘 + x개수"로 보여 준다 (돈이면 위 글자 줄을 쓴다)
+    bn::optional<bn::sprite_ptr> cost_icon;
+    text_line cost_qty_text(left_generator, 0, cost_y);
     text_line price_text(center_generator, 0, price_y);
     text_line money_text(right_generator, 114, 72);
 
@@ -847,25 +940,18 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
         else if(row.cost_sword > 0 || row.cost_material != hs::material::NONE)
         {
-            // 재료 강화: 자리가 좁아 이름의 공백을 빼고 "악령혼x12", "검+19x1"처럼 쓴다
-            if(row.cost_sword > 0)
-            {
-                cost_line = "검+";
-                cost_line += bn::to_string<4>(row.cost_sword);
-            }
-            else
-            {
-                for(const char* c = hs::material_names[int(row.cost_material)]; *c; ++c)
-                {
-                    if(*c != ' ')
-                    {
-                        cost_line.push_back(*c);
-                    }
-                }
-            }
+            // 재료 강화: 재료(또는 검) 아이콘 + "x개수"를 가운데에 맞춰 둔다
+            const bn::sprite_item& icon_item = row.cost_sword > 0 ? *sword_icons[row.cost_sword]
+                                                                  : *material_icons[int(row.cost_material)];
+            bn::string<16> quantity_line("x");
+            quantity_line += bn::to_string<4>(row.cost_qty);
 
-            cost_line += "x";
-            cost_line += bn::to_string<4>(row.cost_qty);
+            const int total_width = 16 + 3 + left_generator.width(quantity_line);
+            const int start = -total_width / 2;
+            cost_icon = icon_item.create_sprite(start + 8, cost_y);
+            cost_icon->set_visible(! help_mode);
+            cost_qty_text.set_x(start + 19);
+            cost_qty_text.set_text(quantity_line);
         }
         else
         {
@@ -873,7 +959,16 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             cost_line += format_money_short(row.cost_usd);
         }
 
-        cost_text.set_text(cost_line);
+        if(cost_line.empty())
+        {
+            cost_text.set_text("");
+        }
+        else
+        {
+            cost_icon.reset();
+            cost_qty_text.set_text("");
+            cost_text.set_text(cost_line);
+        }
 
         bn::string<32> price_line("판매가 ");
         price_line += row.sell_usd < 0 || shown_level == hs::max_level ? bn::string<24>("-") : format_money_short(row.sell_usd);
@@ -932,6 +1027,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         name_rest_text.set_visible(! on);
         chance_text.set_visible(! on);
         cost_text.set_visible(! on);
+        cost_qty_text.set_visible(! on);
+
+        if(cost_icon)
+        {
+            cost_icon->set_visible(! on);
+        }
+
         price_text.set_visible(! on);
         money_text.set_visible(! on);
 
@@ -1566,9 +1668,9 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     }
                     else if(bn::keypad::l_pressed())
                     {
-                        constexpr int jump_levels[3] = { 5, 16, 28 };
+                        constexpr int jump_levels[9] = { 5, 16, 21, 22, 23, 24, 25, 27, 28 };
                         eco.debug_set_level(jump_levels[debug_jump_index]);
-                        debug_jump_index = (debug_jump_index + 1) % 3;
+                        debug_jump_index = (debug_jump_index + 1) % 9;
                         refresh_status();
                     }
                     else
@@ -1790,6 +1892,14 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
 constexpr int list_cursor_x = -114;
 constexpr int list_name_x = -100;
+// 아이콘(16x16)은 이름 자리 왼쪽 끝에 놓고, 글자는 그 오른쪽에서 시작한다
+constexpr int list_icon_x = list_name_x + 8;        // 아이콘 가운데
+constexpr int list_text_x = list_name_x + 19;       // 아이콘이 있는 줄의 글자 시작
+
+void add_icon(const bn::sprite_item& item, int x, int y, bn::ivector<bn::sprite_ptr>& sprites)
+{
+    sprites.push_back(item.create_sprite(x, y));
+}
 constexpr int notice_frames = 90;
 
 class list_cursor
@@ -1829,17 +1939,22 @@ void run_shop(hs::economy& eco, bn::seed_random& random)
     constexpr int top_y = -50;
     constexpr int step_y = 16;
 
+    // 배경: 흑백 상점 그림 (tools/make_menu_bgs.py)
+    bn::regular_bg_ptr background = bn::regular_bg_items::menu_bg_shop.create_bg(title_bg_x, title_bg_y);
+
     text_line title_text(left_generator, -114, -72);
     text_line money_text(right_generator, 114, -72);
     text_line status_text(left_generator, -114, 50);
     text_line footer_text(left_generator, -114, 68);
 
-    bn::vector<bn::sprite_ptr, 48> row_sprites;
+    bn::vector<bn::sprite_ptr, 96> row_sprites;
 
     for(int index = 0; index < hs::shop_item_count; ++index)
     {
         const hs::shop_item& item = hs::shop_items[index];
-        left_generator.generate(list_name_x, top_y + index * step_y, item.name, row_sprites);
+        add_icon(item.effect == hs::shop_effect::PROTECT ? bn::sprite_items::ico_ticket : bn::sprite_items::ico_warp,
+                 list_icon_x, top_y + index * step_y, row_sprites);
+        left_generator.generate(list_text_x, top_y + index * step_y, item.name, row_sprites);
         right_generator.generate(110, top_y + index * step_y, format_money(eco.price(item)), row_sprites);
     }
 
@@ -1944,11 +2059,15 @@ void run_storage(hs::economy& eco, bool sword_rack)
 
     constexpr int quantity_x = 0;
 
+    // 배경: 창고(검 진열대) / 잡화(자루) 흑백 그림 (tools/make_menu_bgs.py)
+    bn::regular_bg_ptr background = (sword_rack ? bn::regular_bg_items::menu_bg_storage
+                                                : bn::regular_bg_items::menu_bg_bag).create_bg(title_bg_x, title_bg_y);
+
     text_line title_text(left_generator, -114, -72);
     text_line ticket_text(right_generator, 114, -72);
     text_line footer_text(left_generator, -114, 68);
 
-    bn::vector<bn::sprite_ptr, 80> row_sprites;
+    bn::vector<bn::sprite_ptr, 112> row_sprites;
     list_cursor cursor(left_generator, list_top_y, list_step_y);
 
     int selected = 0;
@@ -1983,7 +2102,8 @@ void run_storage(hs::economy& eco, bool sword_rack)
 
             for(int8_t level : eco.stored_swords())
             {
-                left_generator.generate(list_name_x, list_top_y + row * list_step_y, sword_label(level), row_sprites);
+                add_icon(*sword_icons[level], list_icon_x, list_top_y + row * list_step_y, row_sprites);
+                left_generator.generate(list_text_x, list_top_y + row * list_step_y, sword_label(level), row_sprites);
                 ++row;
             }
         }
@@ -2000,7 +2120,8 @@ void run_storage(hs::economy& eco, bool sword_rack)
                     int y = list_top_y + row * list_step_y;
                     bn::string<16> quantity_line("x");
                     quantity_line += bn::to_string<8>(quantity);
-                    left_generator.generate(list_name_x, y, hs::material_names[index], row_sprites);
+                    add_icon(*material_icons[index], list_icon_x, y, row_sprites);
+                    left_generator.generate(list_text_x, y, hs::material_names[index], row_sprites);
                     left_generator.generate(quantity_x, y, quantity_line, row_sprites);
                     ++row;
                 }
@@ -2092,8 +2213,12 @@ void run_crafting(hs::economy& eco)
     bn::sprite_text_generator right_generator(hs::font);
     right_generator.set_right_alignment();
 
-    constexpr int count_x = 4;
-    constexpr int output_x = 14;
+    // 배경: 흑백 화로 그림 (tools/make_menu_bgs.py)
+    bn::regular_bg_ptr background = bn::regular_bg_items::menu_bg_furnace.create_bg(title_bg_x, title_bg_y);
+
+    constexpr int count_x = 6;              // 필요 수량(오른쪽 맞춤)
+    constexpr int output_icon_x = 22;       // 결과 아이콘 가운데
+    constexpr int output_text_x = 33;       // 결과 글자
 
     text_line title_text(left_generator, -114, -72);
     text_line ticket_text(right_generator, 114, -72);
@@ -2136,19 +2261,21 @@ void run_crafting(hs::economy& eco)
 
             if(recipe.output == hs::craft_output::PROTECT)
             {
-                output_line = "방지권 x";
+                add_icon(bn::sprite_items::ico_ticket, output_icon_x, y, row_sprites);
+                output_line = "x";
                 output_line += bn::to_string<4>(eco.output_amount(recipe));
             }
             else
             {
+                add_icon(*sword_icons[eco.output_amount(recipe)], output_icon_x, y, row_sprites);
                 output_line = "+";
                 output_line += bn::to_string<4>(eco.output_amount(recipe));
-                output_line += " 검";
             }
 
-            left_generator.generate(list_name_x, y, hs::material_names[int(recipe.input)], row_sprites);
+            add_icon(*material_icons[int(recipe.input)], list_icon_x, y, row_sprites);
+            left_generator.generate(list_text_x, y, hs::material_names[int(recipe.input)], row_sprites);
             right_generator.generate(count_x, y, count_line, row_sprites);
-            left_generator.generate(output_x, y, output_line, row_sprites);
+            left_generator.generate(output_text_x, y, output_line, row_sprites);
         }
     };
 
