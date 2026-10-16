@@ -119,6 +119,9 @@ public:
 
     // 테스트용: 돈 0, +0 검, 방지권·잡템·보관 검 모두 비움 (게임 오버 확인용)
     void debug_bankrupt();
+
+    // 테스트용: 검 단계를 바로 바꾼다 (성공 연출 확인용)
+    void debug_set_level(int level) { _level = level; }
 #endif
 
 private:

@@ -33,12 +33,13 @@ make -j8
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
 - 일반+디버그 동시 빌드: `tools\build_both.bat` (일반 `hookedsmith.gba`, 디버그 `hookedsmith_debug.gba`). 디버그는 `build_debug/` 폴더를 따로 써서 서로 섞이지 않고, 저장 파일(`.sav`)도 ROM 이름별로 따로 생긴다. PowerShell에서는 `& 'C:\Windows\System32\cmd.exe' /c 'tools\build_both.bat'`로 부른다(`cmd`만 쓰면 msys의 cmd가 잡힌다). 배치 파일은 ASCII만 쓴다(cmd가 시스템 코드 페이지로 읽음).
-- 디버그 빌드 수동: `make -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 ↑로 $100,000·방지권 5장·잡템 각 5개, B를 누른 채 ↑로 파산 상태, +1 이상에서 R로 "다음 강화 무조건 실패" 켜기/끄기. (예전처럼 같은 `build/`에서 플래그만 바꾸면 make가 다시 컴파일하지 않으니 쓰지 않는다.)
+- 디버그 빌드 수동: `make -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 ↑로 $100,000·방지권 5장·잡템 각 5개, B를 누른 채 ↑로 파산 상태, +1 이상에서 R로 "무조건 실패/무조건 성공/끔" 순환, L로 단계를 +5→+16→+28로 점프(성공 연출 확인용). (예전처럼 같은 `build/`에서 플래그만 바꾸면 make가 다시 컴파일하지 않으니 쓰지 않는다.)
 - cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
 
 ### mGBA
 - 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace (config.ini의 keySelect는 지금 32=Space로 되어 있으니 안 먹으면 Space)
 - RTC: mGBA는 홈브류의 시계를 자동으로 켜지 않는다. `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`이 들어 있다 (섹션 이름은 `gba.override.`가 아니라 `override.`). mGBA를 닫은 상태에서만 고칠 것(종료할 때 덮어씀). 없으면 타이틀이 항상 낮.
+- 자동 스크린샷(포커스 문제 없이): `tools/mgba_auto.ps1`을 도트 소스(`. tools\mgba_auto.ps1`)로 불러 `Start-Game`으로 mGBA를 `-3 -C screenshotPath=build\shots`로 띄우고, `Press $VK.A`처럼 창에 키 메시지를 직접 보낸 뒤 `Shot '이름'`(F12)으로 240x160 PNG를 `build/shots/`에 저장한다. 변수 `$VK`를 `$vk`로 덮어쓰지 말 것(PowerShell은 대소문자 구분 없음).
 - 화면 확인(computer-use): 모니터가 두 대(BenQ GW2780 가로, BenQ GL2580 세로)라 창이 어느 쪽에 뜰지 모른다. 실행 후 PowerShell `(New-Object -ComObject WScript.Shell).AppActivate(<mGBA PID>)`로 앞으로 가져온 뒤 `hold_key`(0.1초)로 입력한다. 짧은 `key`나 반복 입력은 게임이 못 받는다. `open_application`은 빈 mGBA를 새로 띄우니 쓰지 않는다.
 
 ## 현재 상태 (마지막 커밋 a73e4e0)

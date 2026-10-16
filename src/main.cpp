@@ -7,6 +7,9 @@
 #include "bn_color.h"
 #include "bn_fixed.h"
 #include "bn_fixed_point.h"
+#include "bn_math.h"
+#include "bn_blending.h"
+#include "bn_sprite_affine_mat_ptr.h"
 #include "bn_optional.h"
 #include "bn_keypad.h"
 #include "bn_music.h"
@@ -76,6 +79,8 @@
 #include "bn_sprite_items_sword_28.h"
 #include "bn_sprite_items_sword_29.h"
 #include "bn_sprite_items_shard.h"
+#include "bn_sprite_items_spark.h"
+#include "bn_sprite_items_dust.h"
 #include "economy.h"
 #include "common_variable_8x8_sprite_font.h"
 #include "hs_font.h"
@@ -553,6 +558,7 @@ enum class phase
     PROTECT_ASK,
     RESTORE,    // 방지권으로 지킨 뒤 금이 사라지고 원래 검으로 돌아온다
     BREAK,      // 검이 두 동강 나 흩어진다
+    DOOM,       // +28 -> +29 실패: 성공처럼 빛나다가 멎고 가루가 되어 바스러진다
 };
 
 // 검 스프라이트 프레임 (tools/make_swords.py가 한 장에 4개를 만든다)
@@ -579,6 +585,14 @@ constexpr int restore_frames = 16;      // 방지권으로 지킨 뒤 금이 사
 constexpr int break_frames = 36;        // 검이 부서져 흩어지는 시간
 constexpr int shard_frames = 28;        // 파편이 보이는 시간
 constexpr int shard_count = 4;
+
+// 강화 성공 연출은 새 단계에 따라 4단계로 커진다: +1~5 기본 / +6~16 파랑 / +17~28 빨강 / +29 마지막 검
+constexpr int spark_count = 24;
+constexpr int spark_white = 0;      // spark 그림의 프레임 (tools/make_swords.py)
+constexpr int spark_blue = 1;
+constexpr int spark_gold = 2;
+constexpr int spark_red = 3;
+constexpr int success_lengths[4] = { success_frames, 44, 64, 360 };
 // 검(그림 53줄)은 화면 y 40부터(성공률 줄 아래), 모루(tools/make_anvil.py, 60x34)는 검 폼멜 바로 아래 y 92부터
 constexpr int sword_y = -8;
 constexpr int anvil_y = 44;
@@ -762,8 +776,10 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     phase current_phase = phase::IDLE;
     int phase_frame = 0;
     bool upgrade_succeeded = false;     // 판정은 바로 하고, 결과는 망치질이 끝난 뒤 보여준다
+    bool reveal_hold = false;           // +29 성공: 실패 낚시 연출과 구분이 안 되도록 이름·검 그림·메시지를 폭발 순간까지 숨긴다
 #ifdef HS_DEBUG
-    bool debug_force_fail = false;
+    int debug_force = 0;                    // 0 끔 / 1 다음 강화 무조건 실패 / 2 무조건 성공 (+1 이상에서 R로 돌린다)
+    int debug_jump_index = 0;               // +1 이상에서 L: 단계를 5 → 16 → 28로 옮긴다
 #endif
 
     // SELECT 도움말: 배경·검·모루는 흑백, 아이콘은 컬러로 두고 아이콘 가운데에 이름을 쓴다.
@@ -780,13 +796,51 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         &upgrade_button, &sell_button, &shop_button, &furnace_button, &swords_button, &bag_button
     };
 
+    // 성공률 줄: 평소엔 "성공률 N%", 강화 메시지(땅! 땅! 땅!, 강화 성공! 등)가 있는 동안은 그 메시지가 이 자리를 차지한다
+    int chance_message_timer = 0;
+
+    auto show_chance = [&]()
+    {
+        bn::string<32> chance_line;
+
+        if(eco.at_max_level() && ! reveal_hold)
+        {
+            chance_line = "최고 단계";
+        }
+        else
+        {
+            // +29 성공 연출 중에는 아직 +28이었던 것처럼 이전 단계의 성공률을 보여 준다
+            int pct = eco.success_pct();
+
+            if(reveal_hold)
+            {
+                pct = hs::level_table(eco.diff())[sword_level].success_pct - eco.time_penalty();
+                pct = pct < 0 ? 0 : pct;
+            }
+
+            chance_line = "성공률 ";
+            chance_line += bn::to_string<4>(pct);
+            chance_line += "%";
+        }
+
+        chance_text.set_text(chance_line);
+    };
+
+    auto chance_message = [&](const bn::string_view& text)
+    {
+        chance_text.set_text(text);
+        chance_message_timer = message_frames;
+    };
+
     auto refresh_status = [&]()
     {
-        const hs::level_row& row = eco.row();
+        // 망치질 중에는 결과를 아직 보여주지 않는다: 이름·강화비·판매가는 강화 전 단계 그대로
+        const int shown_level = current_phase == phase::HAMMERING || reveal_hold ? sword_level : eco.level();
+        const hs::level_row& row = hs::level_table(eco.diff())[shown_level];
 
         bn::string<32> cost_line;
 
-        if(eco.at_max_level())
+        if(shown_level == hs::max_level)
         {
             cost_line = "강화비 -";
         }
@@ -821,32 +875,22 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         cost_text.set_text(cost_line);
 
         bn::string<32> price_line("판매가 ");
-        price_line += row.sell_usd < 0 || eco.at_max_level() ? bn::string<24>("-") : format_money_short(row.sell_usd);
+        price_line += row.sell_usd < 0 || shown_level == hs::max_level ? bn::string<24>("-") : format_money_short(row.sell_usd);
         price_text.set_text(price_line);
 
-        name_level = eco.level();
-        name_tint = eco.level() == 0 ? &gray_tint : eco.level() <= 5 ? nullptr :
-                    eco.level() <= 16 ? &blue_tint : &red_tint;
+        name_level = shown_level;
+        name_tint = shown_level == 0 ? &gray_tint : shown_level <= 5 ? nullptr :
+                    shown_level <= 16 ? &blue_tint : &red_tint;
 
         if(message_timer == 0)
         {
             set_name();
         }
 
-        bn::string<32> chance_line;
-
-        if(eco.at_max_level())
+        if(chance_message_timer == 0)
         {
-            chance_line = "최고 단계";
+            show_chance();
         }
-        else
-        {
-            chance_line = "성공률 ";
-            chance_line += bn::to_string<4>(eco.success_pct());
-            chance_line += "%";
-        }
-
-        chance_text.set_text(chance_line);
 
         money_text.set_text(format_money(eco.money()));
 
@@ -858,7 +902,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                            idle && ! eco.at_max_level() && eco.can_afford_upgrade());
 
         // 검 그림은 단계가 바뀔 때 새로 만든다. 망치질 중에는 결과를 아직 보여주지 않는다.
-        if(current_phase != phase::HAMMERING && eco.level() != sword_level)
+        if(current_phase != phase::HAMMERING && ! reveal_hold && eco.level() != sword_level)
         {
             sword_level = eco.level();
             sword = sword_items[sword_level]->create_sprite(0, sword_y);
@@ -973,6 +1017,440 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
     };
 
+    // 강화 성공 연출 (success_lengths 4단계). 별(spark)은 최대 24개, 색은 spark 그림의 프레임으로 고른다.
+    bn::optional<bn::sprite_ptr> sparks[spark_count];
+    bn::fixed_point spark_position[spark_count];
+    bn::fixed_point spark_velocity[spark_count];
+    int spark_life[spark_count] = {};
+    int success_tier = 0;
+    int success_length = success_frames;
+    bn::fixed flash_level = 0;      // 화면 전체 하얀 번쩍임 세기 (매 프레임 줄어든다)
+
+    // first부터 count개 별을 검 한가운데에서 사방으로 쏜다. up_bias는 위로 뜨는 정도(불씨 느낌).
+    // 별 색은 color_a, color_b(spark_white 등)를 번갈아 쓴다 (같으면 한 색).
+    auto spawn_sparks = [&](int first, int count, bn::fixed speed, bn::fixed up_bias, int life,
+                            int color_a, int color_b)
+    {
+        for(int n = 0; n < count; ++n)
+        {
+            int index = first + n;
+            bn::fixed angle = bn::fixed(360 * n) / count + (first * 7) % 30;
+
+            if(angle >= 360)
+            {
+                angle -= 360;
+            }
+
+            spark_position[index] = bn::fixed_point(0, sword_y - 8);
+            spark_velocity[index] = bn::fixed_point(speed * bn::degrees_lut_cos(angle),
+                                                    speed * bn::degrees_lut_sin(angle) - up_bias);
+            spark_life[index] = life;
+            sparks[index] = bn::sprite_items::spark.create_sprite(spark_position[index], n % 2 == 0 ? color_a : color_b);
+        }
+    };
+
+    auto update_sparks = [&]()
+    {
+        for(int index = 0; index < spark_count; ++index)
+        {
+            if(spark_life[index] > 0)
+            {
+                spark_velocity[index] *= bn::fixed(0.96);
+                spark_position[index] += spark_velocity[index];
+                sparks[index]->set_position(spark_position[index]);
+                --spark_life[index];
+                sparks[index]->set_visible(spark_life[index] > 10 || spark_life[index] % 2 == 0);     // 끝나갈 땐 깜빡
+
+                if(spark_life[index] == 0)
+                {
+                    sparks[index].reset();
+                }
+            }
+        }
+    };
+
+    auto apply_flash = [&]()
+    {
+        bn::bg_palettes::set_fade(bn::color(31, 31, 31), flash_level);
+        bn::sprite_palettes::set_fade(bn::color(31, 31, 31), flash_level);
+    };
+
+    auto end_success = [&]()
+    {
+        reveal_hold = false;
+        flash_level = 0;
+        bn::bg_palettes::set_fade(bn::color(0, 0, 0), 0);
+        bn::sprite_palettes::set_fade(bn::color(0, 0, 0), 0);
+
+        for(int index = 0; index < spark_count; ++index)
+        {
+            spark_life[index] = 0;
+            sparks[index].reset();
+        }
+
+        sword.set_position(0, sword_y);
+        sword.remove_affine_mat();
+        sword_palette.set_fade(bn::color(31, 31, 31), 0);
+        current_phase = phase::IDLE;
+        refresh_status();
+    };
+
+    // ── +29 성공 연출과 +28 실패 "낚시" 연출이 같이 쓰는 앞부분 ──
+    // 0~222프레임: 떨림이 커지고 검이 떠오르며, 별 고리와 번쩍임이 쌓이다 210프레임에 가장 눈부시게 터진다.
+    // 여기까지는 성공과 실패가 똑같이 보인다. 이후 성공은 황금빛이 내려앉고, 실패는 빛이 꺼지고 바스러진다.
+    constexpr int grand_peak = 210;
+    constexpr int grand_buildup_end = 222;
+
+    auto grand_buildup = [&](int t, bn::fixed& offset_x, bn::fixed& offset_y, bn::fixed& fade,
+                             bn::color& fade_color, bn::fixed& scale)
+    {
+        const bn::color gold(31, 25, 4);
+        bn::fixed amplitude = t < 200 ? bn::fixed(t) / 18 : bn::fixed(11);
+        bn::fixed rise = bn::fixed(t < 140 ? t : 140) / 10;
+        offset_x = t % 2 == 0 ? amplitude : -amplitude;
+        offset_y = -rise + ((t / 2) % 2 == 0 ? amplitude / 3 : -amplitude / 3);
+
+        // 별 고리: 30프레임마다 두 묶음이 번갈아 점점 빠르게 퍼진다
+        if(t >= 20 && t < 190 && t % 30 == 20)
+        {
+            const int ring = (t - 20) / 30;
+            spawn_sparks(ring % 2 == 0 ? 0 : 12, 12, bn::fixed(1.2) + bn::fixed(ring) * bn::fixed(0.25), bn::fixed(0.1),
+                         58, spark_gold, spark_red);
+        }
+
+        if(t == 60)
+        {
+            flash_level = bn::fixed(0.35);
+        }
+
+        if(t == 100)
+        {
+            flash_level = bn::fixed(0.5);
+        }
+
+        if(t == 140)
+        {
+            flash_level = bn::fixed(0.6);
+        }
+
+        if(t == 180)
+        {
+            flash_level = bn::fixed(0.7);
+        }
+
+        if(t == grand_peak)
+        {
+            flash_level = 1;        // 눈부신 순간 + 별이 한꺼번에
+            spawn_sparks(0, spark_count, 3.0, bn::fixed(0.4), 40, spark_gold, spark_red);
+        }
+
+        // 검 빛: 금빛으로 깜빡이다가 210 부근에서 하얗게 달아오른다
+        if(t < 200)
+        {
+            fade = (t / 8) % 2 == 0 ? bn::fixed(0.3) + bn::fixed(t) / 300 : bn::fixed(0);
+            fade_color = gold;
+        }
+        else
+        {
+            fade = bn::fixed(0.9) - bn::fixed(t - 200) / 70;
+            fade_color = bn::color(31, 31, 28);
+        }
+
+        if(t >= 140)
+        {
+            scale = 1 + bn::fixed(t < grand_peak ? t - 140 : 70) * bn::fixed(0.006);
+        }
+    };
+
+    // 위에서 천천히 내리는 별 한 개 (12~23번 칸 중 빈 곳)
+    auto emit_rain = [&]()
+    {
+        for(int index = 12; index < spark_count; ++index)
+        {
+            if(spark_life[index] == 0)
+            {
+                const int pick = random.get_int(3);
+                spark_position[index] = bn::fixed_point(random.get_int(81) - 40, sword_y - 44 + random.get_int(10));
+                spark_velocity[index] = bn::fixed_point(bn::fixed(random.get_int(7) - 3) / 10, bn::fixed(1.0) + bn::fixed(random.get_int(5)) / 10);
+                spark_life[index] = 45;
+                sparks[index] = bn::sprite_items::spark.create_sprite(spark_position[index],
+                                                                      pick == 0 ? spark_gold : pick == 1 ? spark_red : spark_white);
+                break;
+            }
+        }
+    };
+
+    // 한 프레임치 연출: phase_frame은 SUCCESS가 시작된 뒤 지난 프레임
+    auto run_success_effect = [&]()
+    {
+        const int t = phase_frame;
+        bn::fixed fade = t < success_frames ? bn::fixed(success_frames - t) / success_frames : bn::fixed(0);
+        bn::color fade_color(31, 31, 31);
+        bn::fixed offset_x = 0;
+        bn::fixed offset_y = t < success_frames ? -bn::fixed(t < success_frames / 2 ? t / 2 : (success_frames - t) / 2) : bn::fixed(0);
+        bn::fixed scale = 1;
+
+        if(success_tier == 1)
+        {
+            // +6~16 (파랑): 별이 퍼지고 번쩍임이 한 번 더
+            if(t == 1)
+            {
+                spawn_sparks(0, 8, 1.6, 0, 40, spark_white, spark_white);
+            }
+
+            if(t >= 24 && t < 40)
+            {
+                fade = bn::fixed(40 - t) / 16 * bn::fixed(0.8);
+                fade_color = bn::color(14, 22, 31);
+            }
+        }
+        else if(success_tier == 2)
+        {
+            // +17~28 (빨강): 별·불씨가 크게 터지고 검이 부풀었다 가라앉는다 (화면 번쩍임은 마지막 +29에서만)
+            if(t == 1)
+            {
+                spawn_sparks(0, 12, 2.0, bn::fixed(0.5), 48, spark_blue, spark_blue);
+            }
+
+            if(t == 22)
+            {
+                spawn_sparks(12, 10, 1.3, bn::fixed(0.3), 36, spark_blue, spark_blue);
+            }
+
+            if(t < 20)
+            {
+                scale = 1 + bn::fixed(t < 10 ? t : 20 - t) * bn::fixed(0.03);
+            }
+
+            if(t >= 24 && t < 56)
+            {
+                fade = bn::fixed(56 - t) / 32 * bn::fixed(0.7);
+                fade_color = bn::color(31, 10, 6);
+            }
+        }
+        else if(success_tier == 3)
+        {
+            // +29 (마지막 검): 쌓이던 연출이 210프레임에 터지고, 황금빛 별이 비처럼 내리며 천천히 가라앉는다
+            if(t < grand_buildup_end)
+            {
+                grand_buildup(t, offset_x, offset_y, fade, fade_color, scale);
+
+                if(t == grand_peak)
+                {
+                    // 가장 눈부신 순간에 비로소 +29 검과 이름, 성공 메시지가 드러난다 (실패 낚시와 끝까지 구분되지 않게)
+                    reveal_hold = false;
+                    refresh_status();
+                    chance_message("강화 성공! +29");
+                }
+            }
+            else
+            {
+                const int u = t - grand_buildup_end;
+                const bn::color gold(31, 25, 4);
+                const int settle_length = success_lengths[3] - grand_buildup_end;
+
+                // 검은 떠 있다가 끝에서 제자리로 내려온다
+                bn::fixed rise = u < settle_length - 40 ? bn::fixed(14) : bn::fixed(14) * (settle_length - u) / 40;
+                offset_y = -rise + ((u / 12) % 2 == 0 ? bn::fixed(0) : bn::fixed(-1));
+                fade_color = gold;
+                fade = bn::fixed(0.5) * (settle_length - u) / settle_length;
+                scale = u < 60 ? 1 + bn::fixed(0.35) * (60 - u) / 60 : bn::fixed(1);
+
+                if(u == 30 || u == 75)
+                {
+                    spawn_sparks(0, 12, bn::fixed(1.0), bn::fixed(0.1), 40, spark_gold, spark_red);
+                }
+
+                if(u == 40)
+                {
+                    flash_level = bn::fixed(0.3);
+                }
+
+                if(u < settle_length - 40 && u % 3 == 0)
+                {
+                    emit_rain();
+                }
+            }
+        }
+
+        sword_palette.set_fade(fade_color, fade);
+        sword.set_position(offset_x, sword_y + offset_y);
+
+        if(scale != 1)
+        {
+            sword.set_scale(scale);
+        }
+        else if(sword.affine_mat())
+        {
+            sword.remove_affine_mat();
+        }
+
+        if(flash_level > 0)
+        {
+            flash_level -= bn::fixed(0.07);
+
+            if(flash_level < 0)
+            {
+                flash_level = 0;
+            }
+
+            apply_flash();
+        }
+
+        update_sparks();
+    };
+
+    // +28 -> +29 실패 연출 (phase::DOOM): 성공과 똑같이 쌓이다가(grand_buildup) 빛이 뚝 꺼지고,
+    // 금 간 검이 잿빛으로 멎었다가 천천히 가루가 되어 바스러진다. 별(sparks) 칸을 가루(dust)가 이어서 쓴다.
+    constexpr int doom_silence_start = grand_buildup_end;      // 빛이 꺼지고 정적 (222)
+    constexpr int doom_crumble_start = doom_silence_start + 40; // 바스락 (262)
+    constexpr int doom_crumble_length = 130;
+    constexpr int doom_length = doom_crumble_start + doom_crumble_length;
+
+    // 빈 칸에 가루를 n개 만든다 (검이 있던 자리에서)
+    auto emit_dust = [&](int count)
+    {
+        for(int index = 0; index < spark_count && count > 0; ++index)
+        {
+            if(spark_life[index] == 0)
+            {
+                spark_position[index] = bn::fixed_point(random.get_int(15) - 7, sword_y - 20 + random.get_int(44));
+                spark_velocity[index] = bn::fixed_point(bn::fixed(random.get_int(9) - 4) / 8, -bn::fixed(random.get_int(4)) / 8);
+                spark_life[index] = 40 + random.get_int(24);
+                sparks[index] = bn::sprite_items::dust.create_sprite(spark_position[index], random.get_int(3));
+                --count;
+            }
+        }
+    };
+
+    auto end_doom = [&]()
+    {
+        flash_level = 0;
+        bn::bg_palettes::set_fade(bn::color(0, 0, 0), 0);
+        bn::sprite_palettes::set_fade(bn::color(0, 0, 0), 0);
+
+        for(int index = 0; index < spark_count; ++index)
+        {
+            spark_life[index] = 0;
+            sparks[index].reset();
+        }
+
+        sword.set_blending_enabled(false);
+        bn::blending::set_transparency_alpha(1);
+        sword.remove_affine_mat();
+        sword_palette.set_grayscale_intensity(0);
+        sword_palette.set_fade(bn::color(31, 31, 31), 0);
+        sword.set_item(*sword_items[sword_level], frame_whole);
+        sword.set_visible(true);
+        sword.set_position(0, sword_y);
+        destroy_sword();        // +0 검과 파괴 메시지
+    };
+
+    auto run_doom_effect = [&]()
+    {
+        const int t = phase_frame;
+        bn::fixed offset_x = 0;
+        bn::fixed offset_y = 0;
+        bn::fixed fade = 0;
+        bn::color fade_color(31, 25, 4);
+        bn::fixed scale = 1;        // 쌓이는 동안의 부풀기
+        bn::fixed scale_y = 1;      // 바스러질 때 내려앉기
+        bn::fixed dim = 0;          // 정적 이후 화면이 어두워진다
+
+        if(t < doom_silence_start)
+        {
+            grand_buildup(t, offset_x, offset_y, fade, fade_color, scale);
+        }
+        else
+        {
+            if(t == doom_silence_start)
+            {
+                // 빛이 뚝 꺼진다: 별이 사라지고 검은 금 간 채 잿빛으로 멎는다
+                for(int index = 0; index < spark_count; ++index)
+                {
+                    spark_life[index] = 0;
+                    sparks[index].reset();
+                }
+
+                flash_level = 0;
+                sword.set_item(*sword_items[sword_level], frame_cracked);
+                sword_palette.set_grayscale_intensity(1);
+            }
+
+            fade_color = bn::color(22, 21, 20);
+            fade = bn::fixed(0.25);
+            dim = bn::fixed(t - doom_silence_start < 30 ? t - doom_silence_start : 30) / 30 * bn::fixed(0.4);
+
+            if(t >= doom_crumble_start)
+            {
+                // 바스락: 가루가 흩날리며 검이 천천히 내려앉고 흐려진다
+                const int u = t - doom_crumble_start;
+
+                if(u == 0)
+                {
+                    chance_message("강화 실패...");
+                    emit_dust(20);
+                    sword.set_blending_enabled(true);
+                }
+                else if(u < 90 && u % 4 == 0)
+                {
+                    emit_dust(2);
+                }
+
+                bn::fixed alpha = 1 - bn::fixed(u) / 95;
+                bn::blending::set_transparency_alpha(alpha < 0 ? bn::fixed(0) : alpha);
+                scale_y = 1 - bn::fixed(u) * bn::fixed(0.012);
+
+                if(scale_y < bn::fixed(0.25))
+                {
+                    scale_y = bn::fixed(0.25);
+                }
+
+                offset_y = (1 - scale_y) * 20;
+                offset_x = u < 8 ? (u % 2 == 0 ? bn::fixed(2) : bn::fixed(-2)) : bn::fixed(0);
+
+                for(int index = 0; index < spark_count; ++index)
+                {
+                    spark_velocity[index] += bn::fixed_point(0, bn::fixed(0.05));    // 가루는 천천히 가라앉는다
+                }
+            }
+        }
+
+        sword_palette.set_fade(fade_color, fade);
+        sword.set_position(offset_x, sword_y + offset_y);
+
+        if(scale_y != 1)
+        {
+            sword.set_vertical_scale(scale_y);
+        }
+        else if(scale != 1)
+        {
+            sword.set_scale(scale);
+        }
+        else if(sword.affine_mat())
+        {
+            sword.remove_affine_mat();
+        }
+
+        if(flash_level > 0)
+        {
+            flash_level -= bn::fixed(0.07);
+
+            if(flash_level < 0)
+            {
+                flash_level = 0;
+            }
+
+            apply_flash();
+        }
+        else if(dim > 0)
+        {
+            bn::bg_palettes::set_fade(bn::color(0, 0, 0), dim);
+        }
+
+        update_sparks();
+    };
+
     refresh_status();
     message_text(first_message);
     refresh_status();
@@ -1031,30 +1509,34 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 if(eco.at_max_level())
                 {
-                    message_text("더 올릴 수 없다");
+                    chance_message("더 올릴 수 없다");
                 }
                 else if(! eco.can_afford_money())
                 {
-                    message_text("돈이 모자란다");
+                    chance_message("돈이 모자란다");
                 }
                 else if(! eco.can_afford_materials())
                 {
-                    message_text("재료가 모자란다");
+                    chance_message("재료가 모자란다");
                 }
                 else
                 {
                     eco.set_time_penalty(hs::time_penalty_pct(hs::current_time_band()));    // 판정 순간의 시계로
 #ifdef HS_DEBUG
-                    if(debug_force_fail)
+                    if(debug_force == 1)
                     {
                         eco.set_time_penalty(100);      // 성공률 0%
+                    }
+                    else if(debug_force == 2)
+                    {
+                        eco.set_time_penalty(-100);     // 성공률 100% 이상
                     }
 #endif
                     upgrade_succeeded = eco.upgrade(random);
                     current_phase = phase::HAMMERING;
                     phase_frame = 0;
                     refresh_status();
-                    message_text("땅! 땅! 땅!");
+                    chance_message("땅! 땅! 땅!");
                 }
             }
             else if(bn::keypad::b_pressed())
@@ -1078,8 +1560,15 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 #ifdef HS_DEBUG
                     if(bn::keypad::r_pressed())
                     {
-                        debug_force_fail = ! debug_force_fail;      // +1 이상에서 R: 다음 강화를 무조건 실패시키는 스위치
-                        message_text(debug_force_fail ? "DEBUG FAIL ON" : "DEBUG FAIL OFF");
+                        debug_force = (debug_force + 1) % 3;
+                        message_text(debug_force == 1 ? "DEBUG FAIL" : debug_force == 2 ? "DEBUG SUCCESS" : "DEBUG OFF");
+                    }
+                    else if(bn::keypad::l_pressed())
+                    {
+                        constexpr int jump_levels[3] = { 5, 16, 28 };
+                        eco.debug_set_level(jump_levels[debug_jump_index]);
+                        debug_jump_index = (debug_jump_index + 1) % 3;
+                        refresh_status();
                     }
                     else
 #endif
@@ -1137,31 +1626,51 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
                 if(upgrade_succeeded)
                 {
+                    success_tier = eco.level() <= 5 ? 0 : eco.level() <= 16 ? 1 : eco.level() <= 28 ? 2 : 3;
+                    success_length = success_lengths[success_tier];
+                    flash_level = 0;
+                    reveal_hold = success_tier == 3;
                     current_phase = phase::SUCCESS;
                     refresh_status();
 
-                    bn::string<32> success_line("강화 성공! +");
-                    success_line += bn::to_string<4>(eco.level());
-                    message_text(success_line);
+                    if(! reveal_hold)
+                    {
+                        bn::string<32> success_line("강화 성공! +");
+                        success_line += bn::to_string<4>(eco.level());
+                        chance_message(success_line);
+                    }
+                }
+                else if(sword_level == hs::max_level - 1)
+                {
+                    // +28 -> +29 실패: 결과를 일부러 숨기고 성공처럼 보이게 한다 (메시지는 바스러질 때)
+                    current_phase = phase::DOOM;
+                    flash_level = 0;
                 }
                 else
                 {
                     current_phase = phase::FAIL;
-                    message_text("강화 실패!");
+                    chance_message("강화 실패!");
                 }
+            }
+            break;
+
+        case phase::DOOM:
+            ++phase_frame;
+            run_doom_effect();
+
+            if(phase_frame >= doom_length)
+            {
+                end_doom();
             }
             break;
 
         case phase::SUCCESS:
             ++phase_frame;
-            sword_palette.set_fade(bn::color(31, 31, 31), bn::fixed(success_frames - phase_frame) / success_frames);
-            sword.set_y(sword_y - (phase_frame < success_frames / 2 ? phase_frame / 2 : (success_frames - phase_frame) / 2));
+            run_success_effect();
 
-            if(phase_frame >= success_frames)
+            if(phase_frame >= success_length)
             {
-                sword.set_y(sword_y);
-                current_phase = phase::IDLE;
-                refresh_status();
+                end_success();
             }
             break;
 
@@ -1189,6 +1698,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     ask_line += "장 쓸까?";
                     message_text(ask_line);
                     message_timer = -1;     // 답할 때까지 유지 (금 간 검을 그대로 둔다)
+                    chance_message_timer = 0;
                     chance_text.set_text("A 쓴다  B 안 쓴다");
                     current_phase = phase::PROTECT_ASK;
                 }
@@ -1264,6 +1774,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         if(message_timer > 0 && --message_timer == 0)
         {
             set_name();
+        }
+
+        if(chance_message_timer > 0 && --chance_message_timer == 0 && current_phase != phase::PROTECT_ASK)
+        {
+            show_chance();
         }
 
         bn::core::update();

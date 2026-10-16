@@ -94,6 +94,49 @@ def write_shard():
     write_if_changed(os.path.join(OUT_DIR, 'shard.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
 
 
+def write_spark():
+    """강화 성공 연출의 반짝이는 별 (8x8 십자). 한 장에 색이 다른 프레임 4개를 세로로 쌓는다.
+    0 = 흰색, 1 = 파랑, 2 = 금색(노랑), 3 = 빨강. 팔레트를 나누지 않고 한 팔레트의 다른 번호를 쓴다."""
+    colors = [((248, 248, 248), (208, 208, 224)),     # 흰색
+              ((152, 200, 255), (64, 120, 248)),      # 파랑
+              ((255, 240, 112), (255, 184, 24)),      # 금색
+              ((255, 120, 96), (216, 32, 32))]        # 빨강
+    image = Image.new('P', (8, 8 * len(colors)), 0)
+    palette = [(0, 0, 0)]
+    for frame, (center, arm) in enumerate(colors):
+        palette += [center, arm]
+        base = frame * 8
+        for i in range(8):
+            for x, y in ((3, i), (4, i), (i, 3), (i, 4)):
+                image.putpixel((x, base + y), 2 + frame * 2)
+        for x, y in ((2, 3), (2, 4), (5, 3), (5, 4), (3, 2), (4, 2), (3, 5), (4, 5), (3, 3), (4, 3), (3, 4), (4, 4)):
+            image.putpixel((x, base + y), 1 + frame * 2)
+        # 끝은 가늘게
+        for x, y in ((3, 0), (4, 0), (3, 7), (4, 7), (0, 3), (0, 4), (7, 3), (7, 4)):
+            image.putpixel((x, base + y), 0)
+
+    palette += [(0, 0, 0)] * (16 - len(palette))
+    write_if_changed(os.path.join(OUT_DIR, 'spark.bmp'), write_bmp_4bpp(None, image, palette))
+    write_if_changed(os.path.join(OUT_DIR, 'spark.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
+
+
+def write_dust():
+    """+28 → +29 실패 때 검이 부서져 날리는 가루 (8x8 안의 작은 점). 프레임 0 = 큰 재, 1 = 작은 재, 2 = 어두운 재."""
+    image = Image.new('P', (8, 24), 0)
+    shapes = [
+        [(3, 3), (4, 3), (3, 4), (4, 4), (2, 3), (5, 4)],       # 큰 재 (덩어리)
+        [(3, 3), (4, 4)],                                        # 작은 재
+        [(3, 3), (4, 3), (3, 4), (4, 4)],                        # 어두운 재
+    ]
+    for frame, points in enumerate(shapes):
+        for x, y in points:
+            image.putpixel((x, frame * 8 + y), 1 + frame)
+
+    palette = [(0, 0, 0), (200, 192, 184), (232, 224, 216), (112, 96, 88)] + [(0, 0, 0)] * 12
+    write_if_changed(os.path.join(OUT_DIR, 'dust.bmp'), write_bmp_4bpp(None, image, palette))
+    write_if_changed(os.path.join(OUT_DIR, 'dust.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
+
+
 def convert(path, level):
     image = Image.open(path)
 
@@ -137,6 +180,8 @@ def main():
         convert(found[level], level)
 
     write_shard()
+    write_spark()
+    write_dust()
     return 0
 
 
