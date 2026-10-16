@@ -11,7 +11,7 @@
 5. **깨짐 방지권**: 실패 시 `protect_cost`장을 내면 파괴 대신 현재 단계를 유지할지 플레이어에게 묻는다. `protect_cost <= 0`이면 방지권을 쓸 수 없고 그대로 파괴(`0` = 저단계라 대상 아님, `-1` = 고단계 사용 불가).
 6. **모드**: `STORY` / `HARD` 두 테이블. 스토리 모드는 처음부터 선택 가능하고, 하드 모드는 잠겨 있다. 스토리 모드 클리어 후 세이브에 `story_cleared` 플래그가 저장되면 해금된다.
 7. **우리 게임 범위**: 원작 그대로 **+29(최종 검) 달성이 엔딩**. +0~+28 행을 모두 구현하고, +29는 더 올릴 수 없는 마지막 검이다.
-8. **검 이름**은 원작 것을 쓰지 않는다. 지금은 `"Sword +N"` 같은 자리표시자로 둔다.
+8. **검 이름**은 일단 원작 한글 이름을 쓴다(`sword_names`). 나중에 오리지널 이름으로 바꿀 수 있다.
 
 ## 데이터: 하드 모드 (HARD, 구 인피니트)
 
@@ -108,12 +108,13 @@ tau_bone,5,3,protect x1
 faded_glow,3,2,sword+13 x1
 scrap_swiss,5,3,protect x2
 flame_hilt,2,2,sword+16 x1
+evil_soul,4,4,protect x4
 evil_soul,4,6,sword+19 x1
 axe_dust,6,6,protect x10
 clear_matter,4,3,protect x11(hard) / x9(story)
 ```
 
-원작에는 `evil_soul 4개 → protect x4` 교환도 있으나 +19 검 교환과 재료가 겹쳐 제외(필요 시 추가).
+`evil_soul 4개 → protect x4` 교환도 원작에 있어 추가했다 (스토리·하드 모두 4개). +19 검 교환과 같은 재료를 쓰는 별도 줄이다.
 
 ## 구현 가이드 (Butano)
 

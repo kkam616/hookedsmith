@@ -1415,8 +1415,12 @@ void run_crafting(hs::economy& eco)
     text_line ticket_text(right_generator, 114, -72);
     text_line footer_text(left_generator, -114, 68);
 
-    bn::vector<bn::sprite_ptr, 80> row_sprites;
-    list_cursor cursor(left_generator, list_top_y, list_step_y);
+    // 교환이 9줄이라 다른 목록보다 위에서 좁게 시작한다
+    constexpr int craft_top_y = -56;
+    constexpr int craft_step_y = 13;
+
+    bn::vector<bn::sprite_ptr, 112> row_sprites;
+    list_cursor cursor(left_generator, craft_top_y, craft_step_y);
 
     int selected = 0;
     int frame = 0;
@@ -1438,7 +1442,7 @@ void run_crafting(hs::economy& eco)
         for(int index = 0; index < hs::recipe_count; ++index)
         {
             const hs::recipe& recipe = hs::recipes[index];
-            int y = list_top_y + index * list_step_y;
+            int y = craft_top_y + index * craft_step_y;
 
             bn::string<16> count_line = bn::to_string<16>(eco.material_quantity(recipe.input));
             count_line += "/";

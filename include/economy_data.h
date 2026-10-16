@@ -226,6 +226,7 @@ constexpr recipe recipes[] = {
     { material::FADED_GLOW,    3, 2, craft_output::SWORD,  13, 13 },
     { material::SCRAP_SWISS,   5, 3, craft_output::PROTECT, 2, 2 },
     { material::FLAME_HILT,    2, 2, craft_output::SWORD,  16, 16 },
+    { material::EVIL_SOUL,     4, 4, craft_output::PROTECT, 4, 4 },
     { material::EVIL_SOUL,     4, 6, craft_output::SWORD,  19, 19 },
     { material::AXE_DUST,      6, 6, craft_output::PROTECT, 10, 10 },
     { material::CLEAR_MATTER,  4, 3, craft_output::PROTECT, 11, 9 },
