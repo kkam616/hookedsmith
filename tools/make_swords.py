@@ -80,61 +80,64 @@ def build_frames(image):
     return sheet
 
 
-def write_shard():
-    """부서질 때 흩어지는 8x8 파편 (흰색 삼각 조각)"""
-    image = Image.new('P', (8, 8), 0)
-    image.putpalette([0, 0, 0, 255, 255, 255, 200, 200, 210] + [0] * (16 * 3 - 9))
-    shape = {(3, 1): 1, (4, 1): 1, (2, 2): 1, (3, 2): 1, (4, 2): 1, (5, 2): 2, (2, 3): 1, (3, 3): 1, (4, 3): 2,
-             (5, 3): 2, (3, 4): 1, (4, 4): 2, (5, 4): 2, (4, 5): 2, (5, 5): 2}
-    for (x, y), value in shape.items():
-        image.putpixel((x, y), value)
+FX_PALETTE = [
+    (0, 0, 0),
+    (248, 248, 248), (208, 208, 224),       # 1·2  별 흰색
+    (152, 200, 255), (64, 120, 248),        # 3·4  별 파랑
+    (255, 240, 112), (255, 184, 24),        # 5·6  별 금색
+    (255, 120, 96), (216, 32, 32),          # 7·8  별 빨강
+    (200, 200, 208),                        # 9    파편 어두운 면
+    (200, 192, 184), (232, 224, 216), (112, 96, 88),    # 10~12 가루
+]
 
-    palette = [(0, 0, 0), (248, 248, 248), (200, 200, 208)] + [(0, 0, 0)] * 13
-    write_if_changed(os.path.join(OUT_DIR, 'shard.bmp'), write_bmp_4bpp(None, image, palette))
-    write_if_changed(os.path.join(OUT_DIR, 'shard.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
+# 프레임 번호 (main.cpp의 spark_white 등과 맞춘다): 0 별 흰색, 1 별 파랑, 2 별 금색, 3 별 빨강, 4 파편, 5~7 가루
+FX_FRAME_COUNT = 8
 
 
-def write_spark():
-    """강화 성공 연출의 반짝이는 별 (8x8 십자). 한 장에 색이 다른 프레임 4개를 세로로 쌓는다.
-    0 = 흰색, 1 = 파랑, 2 = 금색(노랑), 3 = 빨강. 팔레트를 나누지 않고 한 팔레트의 다른 번호를 쓴다."""
-    colors = [((248, 248, 248), (208, 208, 224)),     # 흰색
-              ((152, 200, 255), (64, 120, 248)),      # 파랑
-              ((255, 240, 112), (255, 184, 24)),      # 금색
-              ((255, 120, 96), (216, 32, 32))]        # 빨강
-    image = Image.new('P', (8, 8 * len(colors)), 0)
-    palette = [(0, 0, 0)]
-    for frame, (center, arm) in enumerate(colors):
-        palette += [center, arm]
+def write_fx():
+    """연출용 8x8 그림 8장을 한 장으로 (별 4색, 파편, 가루 3종). 팔레트 하나만 쓰도록 합쳤다
+    (강화 화면은 스프라이트 팔레트가 16개 한도에 거의 차 있다)."""
+    image = Image.new('P', (8, 8 * FX_FRAME_COUNT), 0)
+
+    # 0~3: 십자 별
+    for frame in range(4):
         base = frame * 8
+        center_index = 1 + frame * 2
+        arm_index = 2 + frame * 2
         for i in range(8):
             for x, y in ((3, i), (4, i), (i, 3), (i, 4)):
-                image.putpixel((x, base + y), 2 + frame * 2)
+                image.putpixel((x, base + y), arm_index)
         for x, y in ((2, 3), (2, 4), (5, 3), (5, 4), (3, 2), (4, 2), (3, 5), (4, 5), (3, 3), (4, 3), (3, 4), (4, 4)):
-            image.putpixel((x, base + y), 1 + frame * 2)
-        # 끝은 가늘게
+            image.putpixel((x, base + y), center_index)
         for x, y in ((3, 0), (4, 0), (3, 7), (4, 7), (0, 3), (0, 4), (7, 3), (7, 4)):
             image.putpixel((x, base + y), 0)
 
-    palette += [(0, 0, 0)] * (16 - len(palette))
-    write_if_changed(os.path.join(OUT_DIR, 'spark.bmp'), write_bmp_4bpp(None, image, palette))
-    write_if_changed(os.path.join(OUT_DIR, 'spark.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
+    # 4: 파편 (삼각 조각)
+    shard = {(3, 1): 1, (4, 1): 1, (2, 2): 1, (3, 2): 1, (4, 2): 1, (5, 2): 9, (2, 3): 1, (3, 3): 1, (4, 3): 9,
+             (5, 3): 9, (3, 4): 1, (4, 4): 9, (5, 4): 9, (4, 5): 9, (5, 5): 9}
+    for (x, y), value in shard.items():
+        image.putpixel((x, 4 * 8 + y), value)
 
-
-def write_dust():
-    """+28 → +29 실패 때 검이 부서져 날리는 가루 (8x8 안의 작은 점). 프레임 0 = 큰 재, 1 = 작은 재, 2 = 어두운 재."""
-    image = Image.new('P', (8, 24), 0)
-    shapes = [
-        [(3, 3), (4, 3), (3, 4), (4, 4), (2, 3), (5, 4)],       # 큰 재 (덩어리)
-        [(3, 3), (4, 4)],                                        # 작은 재
-        [(3, 3), (4, 3), (3, 4), (4, 4)],                        # 어두운 재
+    # 5~7: 가루 (큰 재, 작은 재, 어두운 재)
+    dust_shapes = [
+        ([(3, 3), (4, 3), (3, 4), (4, 4), (2, 3), (5, 4)], 10),
+        ([(3, 3), (4, 4)], 11),
+        ([(3, 3), (4, 3), (3, 4), (4, 4)], 12),
     ]
-    for frame, points in enumerate(shapes):
+    for offset, (points, value) in enumerate(dust_shapes):
         for x, y in points:
-            image.putpixel((x, frame * 8 + y), 1 + frame)
+            image.putpixel((x, (5 + offset) * 8 + y), value)
 
-    palette = [(0, 0, 0), (200, 192, 184), (232, 224, 216), (112, 96, 88)] + [(0, 0, 0)] * 12
-    write_if_changed(os.path.join(OUT_DIR, 'dust.bmp'), write_bmp_4bpp(None, image, palette))
-    write_if_changed(os.path.join(OUT_DIR, 'dust.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
+    palette = FX_PALETTE + [(0, 0, 0)] * (16 - len(FX_PALETTE))
+    write_if_changed(os.path.join(OUT_DIR, 'fx.bmp'), write_bmp_4bpp(None, image, palette))
+    write_if_changed(os.path.join(OUT_DIR, 'fx.json'), '{\n    "type": "sprite",\n    "height": 8\n}\n')
+
+    # 예전에 따로 만들던 그림은 지운다
+    for name in ('shard', 'spark', 'dust'):
+        for extension in ('.bmp', '.json'):
+            path = os.path.join(OUT_DIR, name + extension)
+            if os.path.exists(path):
+                os.remove(path)
 
 
 def convert(path, level):
@@ -179,9 +182,7 @@ def main():
     for level in range(SWORD_COUNT):
         convert(found[level], level)
 
-    write_shard()
-    write_spark()
-    write_dust()
+    write_fx()
     return 0
 
 
