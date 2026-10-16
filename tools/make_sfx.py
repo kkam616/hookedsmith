@@ -7,6 +7,7 @@
   sfx_select.wav      선택·확정 (밝게 올라가는 두 음 "띠딩")
   sfx_success_0~3.wav 단계별 강화 성공 (0: +1~5 / 1: +6~16 / 2: +17~28 / 3: +29)
   sfx_glow.wav        +28→+29 시도와 +29 성공이 공유하는 빛 차오르는 소리 (3.45초, 결과 직전에 정점)
+  sfx_sell_0~2.wav    판매 (0: +1~5 동전 몇 닢 / 1: +6~16 쏟아지는 동전 / 2: +17~28 금화 소나기 + 팡파르)
   sfx_fail.wav        강화 실패·파괴 (가벼운 빠직: 짧은 잡음 두 번 + 작은 하강 삑, 약 0.15초)
 수동 실행: python -B tools/make_sfx.py
 (음악은 assets/audio/*.wav → make_music.py → audio/*.xm. 효과음은 이 스크립트가 audio/에 wav로 바로 만든다.)
@@ -235,6 +236,42 @@ def glow():            # +28→+29 시도·+29 성공 공통: 빛이 점점 차�
     return out
 
 
+# ── 7) 판매음: 단계(+1~5 / +6~16 / +17~28)에 따라 동전 소리가 커진다 ──────────────────────────
+def clink(freq, volume=0.5, length=0.09):
+    """동전 부딪히는 "짤랑": 높은 음 두 개를 짧게 겹친다"""
+    return render(length, lambda t, p: (square(freq, t, 0.125) * 0.6 + square(freq * 1.5, t, 0.25) * 0.4) * envelope(p, length, 0.0, 1.8) * volume)
+
+
+def sell_1():       # +1~5: 동전 두세 닢 "짤랑"
+    total = 0.30
+    parts = [place(clink(2093, 0.45), 0.00, total), place(clink(2637, 0.42), 0.07, total), place(clink(3136, 0.36, 0.12), 0.15, total)]
+    return mix(*parts)
+
+
+def sell_2():       # +6~16: 동전이 쏟아지는 소리 + 반짝이는 상승음
+    total = 0.80
+    rng = random.Random(2)
+    parts = []
+    for i in range(9):
+        freq = rng.choice((1760, 2093, 2349, 2637, 3136))
+        parts.append(place(clink(freq, 0.34), i * 0.045 + rng.uniform(0, 0.015), total))
+    parts.append(place(arp([1047, 1319, 1568, 2093], 0.05, 0.28, 0.125, 0.30, 0.5), 0.24, total))
+    return mix(*parts)
+
+
+def sell_3():       # +17~28: 금화 소나기 + 팡파르 화음 + 심벌
+    total = 1.50
+    rng = random.Random(3)
+    parts = []
+    for i in range(24):
+        freq = rng.choice((1568, 1760, 2093, 2349, 2637, 3136, 3520))
+        parts.append(place(clink(freq, 0.26, 0.08), 0.02 + i * 0.045 + rng.uniform(0, 0.02), total))
+    parts.append(place(chord([262, 330, 392, 523], 0.9, 0.32), 0.0, total))
+    parts.append(place(arp([523, 659, 784, 1047, 1319], 0.07, 0.5, 0.25, 0.4, 0.9), 0.30, total))
+    parts.append(place(crash(0.45, 0.22), 0.0, total))
+    return mix(*parts)
+
+
 def main():
     sounds = [
         ('sfx_menu_move', menu_move()),
@@ -246,6 +283,9 @@ def main():
         ('sfx_success_3', success_3()),
         ('sfx_glow', glow()),
         ('sfx_fail', fail()),
+        ('sfx_sell_0', sell_1()),
+        ('sfx_sell_1', sell_2()),
+        ('sfx_sell_2', sell_3()),
     ]
 
     gap = [0.0] * samples(0.5)

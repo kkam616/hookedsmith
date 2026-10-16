@@ -88,10 +88,11 @@ FX_PALETTE = [
     (255, 120, 96), (216, 32, 32),          # 7·8  별 빨강
     (200, 200, 208),                        # 9    파편 어두운 면
     (200, 192, 184), (232, 224, 216), (112, 96, 88),    # 10~12 가루
+    (72, 40, 8), (176, 120, 24),                        # 13·14 동전 테두리·어두운 면
 ]
 
-# 프레임 번호 (main.cpp의 spark_white 등과 맞춘다): 0 별 흰색, 1 별 파랑, 2 별 금색, 3 별 빨강, 4 파편, 5~7 가루
-FX_FRAME_COUNT = 8
+# 프레임 번호 (main.cpp의 spark_white 등과 맞춘다): 0 별 흰색, 1 별 파랑, 2 별 금색, 3 별 빨강, 4 파편, 5~7 가루, 8~11 동전(돌아가는 4장)
+FX_FRAME_COUNT = 12
 
 
 def write_fx():
@@ -127,6 +128,25 @@ def write_fx():
     for offset, (points, value) in enumerate(dust_shapes):
         for x, y in points:
             image.putpixel((x, (5 + offset) * 8 + y), value)
+
+    # 8~11: 동전 (판매 연출). 정면 → 비스듬 → 옆면 → 비스듬으로 돌아간다
+    coin_widths = [8, 6, 2, 6]
+    for offset, width in enumerate(coin_widths):
+        base = (8 + offset) * 8
+        left = (8 - width) // 2
+        for y in range(8):
+            inset = 1 if y in (0, 7) else 0
+            for x in range(left + inset, left + width - inset):
+                edge = x in (left, left + width - 1) or y in (0, 7)
+                image.putpixel((x, base + y), 13 if edge else 6)
+        if width > 2:
+            for x, y in ((left + 2, 2), (left + 3, 2), (left + 2, 3)):
+                image.putpixel((x, base + y), 5)
+            for x, y in ((left + width - 3, 5), (left + width - 3, 4)):
+                image.putpixel((x, base + y), 14)
+        else:
+            for y in range(1, 7):
+                image.putpixel((left, base + y), 14)
 
     palette = FX_PALETTE + [(0, 0, 0)] * (16 - len(FX_PALETTE))
     write_if_changed(os.path.join(OUT_DIR, 'fx.bmp'), write_bmp_4bpp(None, image, palette))

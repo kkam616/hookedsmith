@@ -771,6 +771,7 @@ enum class phase
     RESTORE,    // 방지권으로 지킨 뒤 금이 사라지고 원래 검으로 돌아온다
     BREAK,      // 검이 두 동강 나 흩어진다
     DOOM,       // +28 -> +29 실패: 성공처럼 빛나다가 멎고 가루가 되어 바스러진다
+    SELL,       // 검을 팔면 번쩍이며 사라지고 동전이 쏟아진다 (+1~5 / +6~16 / +17~28)
 };
 
 // 검 스프라이트 프레임 (tools/make_swords.py가 한 장에 4개를 만든다)
@@ -902,6 +903,13 @@ constexpr int spark_red = 3;
 constexpr int fx_shard = 4;         // 부서지는 검의 파편
 constexpr int fx_dust_first = 5;    // 가루 3종: 5, 6, 7
 constexpr int success_lengths[4] = { success_frames, 44, 64, 360 };
+
+// 판매 연출 (강화 성공 연출과 같은 3단계 +1~5 / +6~16 / +17~28). 동전은 fx 그림 8~11 (돌아가는 4장).
+constexpr int fx_coin_first = 8;
+constexpr int coin_count = 32;
+constexpr int sell_lengths[3] = { 40, 60, 90 };
+constexpr int sell_vanish_frames[3] = { 10, 14, 20 };       // 검이 흐려지며 사라지는 시간
+constexpr int coin_floor_y = 66;                            // 동전이 튀는 바닥 (모루 아래)
 // 검(그림 53줄)은 화면 y 40부터(성공률 줄 아래), 모루(tools/make_anvil.py, 60x34)는 검 폼멜 바로 아래 y 92부터
 constexpr int sword_y = -8;
 constexpr int anvil_y = 44;
@@ -1394,6 +1402,24 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
     };
 
+    // 판매 연출: 동전 (coin_count개). 위로 튀었다가 떨어져 바닥에서 몇 번 튕기고 깜빡이며 사라진다.
+    struct coin_state
+    {
+        bn::optional<bn::sprite_ptr> sprite;
+        bn::fixed_point position;
+        bn::fixed_point velocity;
+        bn::fixed floor;
+        int delay = 0;
+        int age = 0;
+        int settled = 0;
+        bool active = false;
+    };
+
+    coin_state coins[coin_count];
+    int sell_tier = 0;
+    int sell_money_before = 0;
+    int sell_amount = 0;
+
     // 강화 성공 연출 (success_lengths 4단계). 별(spark)은 최대 24개, 색은 spark 그림의 프레임으로 고른다.
     bn::optional<bn::sprite_ptr> sparks[spark_count];
     bn::fixed_point spark_position[spark_count];
@@ -1688,6 +1714,212 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         update_sparks();
     };
 
+    auto add_coin = [&](bn::fixed x, bn::fixed y, bn::fixed vx, bn::fixed vy, int floor_y, int delay)
+    {
+        for(coin_state& coin : coins)
+        {
+            if(! coin.active)
+            {
+                coin.active = true;
+                coin.position = bn::fixed_point(x, y);
+                coin.velocity = bn::fixed_point(vx, vy);
+                coin.floor = floor_y;
+                coin.delay = delay;
+                coin.age = 0;
+                coin.settled = 0;
+                coin.sprite.reset();
+                return;
+            }
+        }
+    };
+
+    auto clear_coins = [&]()
+    {
+        for(coin_state& coin : coins)
+        {
+            coin.active = false;
+            coin.sprite.reset();
+        }
+    };
+
+    // sold_level 검을 판 직후에 부른다 (돈은 이미 올랐고, 화면 숫자는 연출 동안 올라간다)
+    auto start_sell_effect = [&](int sold_level, int money_before, int amount)
+    {
+        sell_tier = sold_level <= 5 ? 0 : sold_level <= 16 ? 1 : 2;
+        sell_money_before = money_before;
+        sell_amount = amount;
+        current_phase = phase::SELL;
+        phase_frame = 0;
+        reveal_hold = true;         // 검 그림·이름·판매가는 연출이 끝날 때까지 판매 전 그대로
+        clear_coins();
+
+        // 위로 튀는 동전 (검이 있던 모루 위에서)
+        const int fountain = sell_tier == 0 ? 5 : sell_tier == 1 ? 12 : 14;
+        const bn::fixed spread = sell_tier == 0 ? bn::fixed(1.6) : sell_tier == 1 ? bn::fixed(2.4) : bn::fixed(3.2);
+        const bn::fixed power = sell_tier == 0 ? bn::fixed(4.2) : sell_tier == 1 ? bn::fixed(5.2) : bn::fixed(6.0);
+
+        for(int index = 0; index < fountain; ++index)
+        {
+            bn::fixed vx = bn::fixed(random.get_int(2001) - 1000) / 1000 * spread;
+            bn::fixed vy = -power * (bn::fixed(60 + random.get_int(41)) / 100);
+            add_coin(random.get_int(13) - 6, 34, vx, vy, coin_floor_y + random.get_int(17) - 8, index);
+        }
+
+        // 가장 높은 단계는 하늘에서 금화 소나기가 더해진다
+        if(sell_tier == 2)
+        {
+            for(int index = 0; index < 18; ++index)
+            {
+                add_coin(random.get_int(161) - 80, -88, bn::fixed(random.get_int(9) - 4) / 10, bn::fixed(random.get_int(10)) / 10,
+                         coin_floor_y + random.get_int(17) - 8, index * 2 + random.get_int(4));
+            }
+        }
+
+        sword_palette.set_fade(bn::color(31, 31, 31), 1);
+        sword.set_blending_enabled(true);
+        bn::blending::set_transparency_alpha(1);
+        flash_level = sell_tier == 2 ? bn::fixed(0.7) : sell_tier == 1 ? bn::fixed(0.35) : bn::fixed(0);
+
+        if(sell_tier == 0)
+        {
+            bn::sound_items::sfx_sell_0.play();
+        }
+        else if(sell_tier == 1)
+        {
+            bn::sound_items::sfx_sell_1.play();
+        }
+        else
+        {
+            bn::sound_items::sfx_sell_2.play();
+        }
+    };
+
+    auto end_sell_effect = [&]()
+    {
+        clear_coins();
+        flash_level = 0;
+        bn::bg_palettes::set_fade(bn::color(0, 0, 0), 0);
+        bn::sprite_palettes::set_fade(bn::color(0, 0, 0), 0);
+
+        for(int index = 0; index < spark_count; ++index)
+        {
+            spark_life[index] = 0;
+            sparks[index].reset();
+        }
+
+        sword.set_blending_enabled(false);
+        bn::blending::set_transparency_alpha(1);
+        sword.set_visible(true);
+        sword.set_position(0, sword_y);
+        sword_palette.set_fade(bn::color(31, 31, 31), 0);
+        reveal_hold = false;
+        current_phase = phase::IDLE;
+        refresh_status();       // +0 검과 판매 후 돈·이름이 나타난다
+    };
+
+    auto run_sell_effect = [&]()
+    {
+        const int t = phase_frame;
+        const int vanish = sell_vanish_frames[sell_tier];
+
+        // 검: 번쩍였다가 위로 떠오르며 흐려진다
+        if(t < vanish + 6)
+        {
+            bn::fixed glow = t < 6 ? 1 - bn::fixed(t) / 6 : bn::fixed(0);
+            sword_palette.set_fade(bn::color(31, 31, 31), bn::fixed(0.25) + bn::fixed(0.75) * glow);
+            sword.set_y(sword_y - bn::fixed(t) * (sell_tier < 2 ? bn::fixed(1.2) : bn::fixed(1.6)));
+            bn::fixed alpha = t < 4 ? bn::fixed(1) : 1 - bn::fixed(t - 4) / vanish;
+            bn::blending::set_transparency_alpha(alpha < 0 ? bn::fixed(0) : alpha);
+        }
+        else
+        {
+            sword.set_visible(false);
+        }
+
+        // 반짝이는 별 (+6 이상)
+        if(t == 1 && sell_tier > 0)
+        {
+            spawn_sparks(0, sell_tier == 1 ? 4 : 8, bn::fixed(1.2), bn::fixed(0.3), 22, spark_gold, spark_white);
+        }
+
+        update_sparks();
+
+        // 동전
+        for(coin_state& coin : coins)
+        {
+            if(! coin.active)
+            {
+                continue;
+            }
+
+            if(coin.delay > 0)
+            {
+                --coin.delay;
+                continue;
+            }
+
+            ++coin.age;
+            coin.velocity += bn::fixed_point(0, 0.28);
+            coin.position += coin.velocity;
+
+            if(coin.position.y() >= coin.floor && coin.velocity.y() > 0)
+            {
+                coin.position.set_y(coin.floor);
+                coin.velocity = bn::fixed_point(coin.velocity.x() * bn::fixed(0.6), -coin.velocity.y() * bn::fixed(0.45));
+
+                if(coin.velocity.y() > -0.8)
+                {
+                    coin.velocity.set_y(0);
+                }
+            }
+
+            if(coin.velocity.y() == 0 && coin.position.y() >= coin.floor)
+            {
+                ++coin.settled;
+            }
+
+            if(coin.settled >= 14)
+            {
+                coin.sprite.reset();
+                coin.active = false;
+                continue;
+            }
+
+            if(! coin.sprite)
+            {
+                coin.sprite = bn::sprite_items::fx.create_sprite(coin.position.x(), coin.position.y(), fx_coin_first);
+            }
+
+            coin.sprite->set_position(coin.position);
+            coin.sprite->set_item(bn::sprite_items::fx, fx_coin_first + (coin.age / 2) % 4);
+            coin.sprite->set_visible(coin.settled <= 8 || coin.settled % 2 == 0);
+        }
+
+        // 화면 번쩍임
+        if(flash_level > 0)
+        {
+            apply_flash();
+            flash_level -= sell_tier == 2 ? bn::fixed(0.18) : bn::fixed(0.1);
+
+            if(flash_level <= 0)
+            {
+                flash_level = 0;
+                bn::bg_palettes::set_fade(bn::color(0, 0, 0), 0);
+                bn::sprite_palettes::set_fade(bn::color(0, 0, 0), 0);
+            }
+        }
+
+        // 돈이 올라간다 (연출 초반부터 끝나기 조금 전까지)
+        const int count_start = 6;
+        const int count_end = sell_lengths[sell_tier] - 10;
+
+        if(t >= count_start)
+        {
+            int progress = t > count_end ? count_end - count_start : t - count_start;
+            money_text.set_text(format_money(sell_money_before + int(int64_t(sell_amount) * progress / (count_end - count_start))));
+        }
+    };
+
     // +28 -> +29 실패 연출 (phase::DOOM): 성공과 똑같이 쌓이다가(grand_buildup) 빛이 뚝 꺼지고,
     // 금 간 검이 잿빛으로 멎었다가 천천히 가루가 되어 바스러진다. 별(sparks) 칸을 가루(dust)가 이어서 쓴다.
     constexpr int doom_silence_start = grand_buildup_end;      // 빛이 꺼지고 정적 (222)
@@ -1959,10 +2191,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 }
                 else
                 {
+                    const int sold_level = eco.level();
+                    const int money_before = eco.money();
+                    const int amount = eco.sell();
                     bn::string<48> sold_line("판매 +");
-                    sold_line += format_money_short(eco.sell());
+                    sold_line += format_money_short(amount);
                     message_text(sold_line);
-                    refresh_status();
+                    start_sell_effect(sold_level, money_before, amount);
                 }
             }
             else if(bn::keypad::l_pressed() || bn::keypad::r_pressed())
@@ -2107,6 +2342,16 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             if(phase_frame >= doom_length)
             {
                 end_doom();
+            }
+            break;
+
+        case phase::SELL:
+            ++phase_frame;
+            run_sell_effect();
+
+            if(phase_frame >= sell_lengths[sell_tier])
+            {
+                end_sell_effect();
             }
             break;
 
