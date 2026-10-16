@@ -85,6 +85,7 @@
 #include "bn_sprite_items_sword_29.h"
 #include "bn_sprite_items_fx.h"
 #include "bn_sprite_items_splash_logo.h"
+#include "bn_sprite_items_ico_ready.h"
 #include "bn_sprite_items_ico_ticket.h"
 #include "bn_sprite_items_ico_scrap.h"
 #include "bn_sprite_items_ico_tau_bone.h"
@@ -485,7 +486,7 @@ void run_splash()
     bn::vector<bn::sprite_ptr, 16> text_sprites;
     gen.generate(0, 0, "Powered by Butano", text_sprites);
 
-    // Butano 문구는 그대로 두고, 잠시 뒤 저작권 문구가 부드럽게 두 번 깜빡이며(페이드 인·아웃) 강조된 뒤 남는다.
+    // Butano 문구는 그대로 두고, 잠시 뒤 저작권 문구가 부드럽게 세 번 깜빡이며(페이드 인·아웃) 강조된 뒤 남는다.
     // 문구만 따로 페이드하려고 Butano 문구와 팔레트를 나눈다.
     for(int f = 0; f < SPLASH_HOLD; ++f)
     {
@@ -505,10 +506,10 @@ void run_splash()
 
     constexpr int credit_fade = 30;
 
-    // 안 보이는 상태 → 보임 → 안 보임 → 보임(유지)
-    for(int step = 0; step < 3; ++step)
+    // 안 보이는 상태 → 보임 → 안 보임 → 보임 → 안 보임 → 보임(유지), 세 번 깜빡인다
+    for(int step = 0; step < 5; ++step)
     {
-        bool fade_in = step != 1;
+        bool fade_in = step % 2 == 0;
 
         for(int f = 0; f <= credit_fade; ++f)
         {
@@ -517,7 +518,7 @@ void run_splash()
             bn::core::update();
         }
 
-        if(step == 0)
+        if(fade_in && step < 4)
         {
             for(int f = 0; f < 10; ++f)
             {
@@ -2249,6 +2250,8 @@ void add_icon(const bn::sprite_item& item, int x, int y, bn::ivector<bn::sprite_
     sprites.push_back(item.create_sprite(x, y));
 }
 constexpr int notice_frames = 90;
+constexpr int ready_light_x = 108;       // 초록불(살 수 있음·만들 수 있음) 가운데
+constexpr int shop_price_x = 8;          // 상점 금액 왼쪽 끝 ($에 맞춤. 오른쪽 점원이 보이게 비운다)
 
 class list_cursor
 {
@@ -2306,8 +2309,11 @@ void run_shop(hs::economy& eco, bn::seed_random& random)
         add_icon(item.effect == hs::shop_effect::PROTECT ? bn::sprite_items::ico_ticket : bn::sprite_items::ico_warp,
                  list_icon_x, top_y + index * step_y, row_sprites);
         left_generator.generate(list_text_x, top_y + index * step_y, item.name, row_sprites);
-        right_generator.generate(110, top_y + index * step_y, format_money(eco.price(item)), row_sprites);
+        left_generator.generate(shop_price_x, top_y + index * step_y, format_money(eco.price(item)), row_sprites);
     }
+
+    // 지금 살 수 있는 줄 끝에 초록불 (돈이 충분하고, 워프는 +0 검일 때만)
+    bn::vector<bn::sprite_ptr, hs::shop_item_count> ready_lights;
 
     list_cursor cursor(left_generator, top_y, step_y);
     int selected = 0;
@@ -2317,6 +2323,18 @@ void run_shop(hs::economy& eco, bn::seed_random& random)
     auto refresh_status = [&]()
     {
         money_text.set_text(format_money(eco.money()));
+
+        ready_lights.clear();
+
+        for(int index = 0; index < hs::shop_item_count; ++index)
+        {
+            const hs::shop_item& item = hs::shop_items[index];
+
+            if(eco.money() >= eco.price(item) && (item.effect != hs::shop_effect::WARP || eco.level() == 0))
+            {
+                ready_lights.push_back(bn::sprite_items::ico_ready.create_sprite(ready_light_x, top_y + index * step_y));
+            }
+        }
 
         bn::string<48> status_line("방지권 ");
         status_line += bn::to_string<8>(eco.tickets());
@@ -2573,9 +2591,9 @@ void run_crafting(hs::economy& eco)
     // 배경: 흑백 화로 그림 (tools/make_menu_bgs.py)
     bn::regular_bg_ptr background = bn::regular_bg_items::menu_bg_furnace.create_bg(title_bg_x, title_bg_y);
 
-    constexpr int count_x = 6;              // 필요 수량(오른쪽 맞춤)
-    constexpr int output_icon_x = 22;       // 결과 아이콘 가운데
-    constexpr int output_text_x = 33;       // 결과 글자
+    constexpr int output_icon_x = shop_price_x + 8;   // 결과 아이콘 가운데 (상점 금액 시작 위치에 맞춤)
+    constexpr int count_x = output_icon_x - 16;              // 필요 수량(오른쪽 맞춤)
+    constexpr int output_text_x = output_icon_x + 11;   // 결과 글자
 
     text_line title_text(left_generator, -114, -72);
     text_line ticket_text(right_generator, 114, -72);
@@ -2633,6 +2651,13 @@ void run_crafting(hs::economy& eco)
             left_generator.generate(list_text_x, y, hs::material_names[int(recipe.input)], row_sprites);
             right_generator.generate(count_x, y, count_line, row_sprites);
             left_generator.generate(output_text_x, y, output_line, row_sprites);
+
+            // 지금 만들 수 있으면 줄 끝에 초록불 (재료가 충분하고, 검이면 창고에 자리가 있을 때)
+            if(eco.material_quantity(recipe.input) >= eco.required_quantity(recipe) &&
+               (recipe.output != hs::craft_output::SWORD || eco.stored_swords().size() < eco.stored_swords().max_size()))
+            {
+                add_icon(bn::sprite_items::ico_ready, ready_light_x, y, row_sprites);
+            }
         }
     };
 
