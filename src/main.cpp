@@ -485,6 +485,47 @@ void run_splash()
     bn::vector<bn::sprite_ptr, 16> text_sprites;
     gen.generate(0, 0, "Powered by Butano", text_sprites);
 
+    // Butano 문구는 그대로 두고, 잠시 뒤 저작권 문구가 부드럽게 두 번 깜빡이며(페이드 인·아웃) 강조된 뒤 남는다.
+    // 문구만 따로 페이드하려고 Butano 문구와 팔레트를 나눈다.
+    for(int f = 0; f < SPLASH_HOLD; ++f)
+    {
+        bn::core::update();
+    }
+
+    bn::vector<bn::sprite_ptr, 48> credit_sprites;
+    gen.generate(0, 36, "Fan-made. Original concept © NBS.", credit_sprites);
+    gen.generate(0, 50, "All rights reserved.", credit_sprites);
+
+    bn::sprite_palette_ptr credit_palette = bn::sprite_palette_ptr::create_new(hs::font.item().palette_item());
+
+    for(bn::sprite_ptr& sprite : credit_sprites)
+    {
+        sprite.set_palette(credit_palette);
+    }
+
+    constexpr int credit_fade = 30;
+
+    // 안 보이는 상태 → 보임 → 안 보임 → 보임(유지)
+    for(int step = 0; step < 3; ++step)
+    {
+        bool fade_in = step != 1;
+
+        for(int f = 0; f <= credit_fade; ++f)
+        {
+            bn::fixed intensity = bn::fixed(fade_in ? credit_fade - f : f) / credit_fade;
+            credit_palette.set_fade(bn::color(0, 0, 0), intensity);
+            bn::core::update();
+        }
+
+        if(step == 0)
+        {
+            for(int f = 0; f < 10; ++f)
+            {
+                bn::core::update();
+            }
+        }
+    }
+
     for(int f = 0; f < SPLASH_HOLD; ++f)
     {
         bn::core::update();
@@ -499,6 +540,7 @@ void run_splash()
     }
 
     text_sprites.clear();
+    credit_sprites.clear();
 
     // ── 2단계: JAY'S LOFT ────────────────────────────────────────────
     // 로고(tools/make_splash_logo.py, 약 50px)를 화면 한가운데에 놓는다
