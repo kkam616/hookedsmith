@@ -1,107 +1,92 @@
 # HookedSmith (GBA)
 
 세금에 시달리는 시골 대장장이 스미스가 낡은 단검을 +29까지 강화하는 GBA 게임.
-기본 루프는 플래시 게임 「검 강화하기」를 모티브로 한다(강화 비용·확률, 실패 시 파괴, 판매가 주 수입, 깨짐 방지권, 잡템·조합소).
-기획 문서: https://claude.ai/code/artifact/73958658-7f11-4c5d-9b9d-c0411b66512b
-경제 스펙: `docs/ECONOMY_SPEC.md`
-기획 메모(용어·스토리·미정 사항): `docs/DESIGN_NOTES.md`
+기본 루프는 플래시 게임 「검 강화하기」를 모티브로 한다(강화 비용·확률, 실패 시 파괴, 판매가 주 수입, 깨짐 방지권, 잡템·화구 교환).
 저장소: https://github.com/kkam616/hookedsmith (`main`)
+
+## 문서 (이 파일이 핸드오프, 나머지는 필요할 때 읽는다)
+- **`docs/GAME_MANUAL.md`** — 구현된 시스템 전체 매뉴얼(규칙·확률 표·화면·연출·미정). 시스템을 바꾸면 같이 고친다. 표(`<!-- AUTO:... -->`)는 `python -B tools/make_manual.py`가 `include/economy_data.h`에서 다시 만든다 (손으로 고치지 말 것).
+- `docs/ECONOMY_SPEC.md` — 원작 수치 CSV와 경제 규칙(구현 스펙)
+- `docs/DESIGN_NOTES.md` — 용어·스토리·데이터 취급 원칙
+- 기획 문서(웹): https://claude.ai/code/artifact/73958658-7f11-4c5d-9b9d-c0411b66512b
 
 ## 작업 방식 (사용자 선호)
 - 답변·요약·작업 목록은 모두 한국어로.
-- 커밋·푸시는 사용자가 요청할 때만. 끝나면 "커밋할까요?"로 묻는다.
-- 화면 변경은 빌드 후 mGBA에서 직접 보고 확인한 뒤 보고한다.
-- 사용자가 그림(대개 AI 생성 일러스트)을 주면 GBA 스타일로 줄여 넣는 작업이 많다. 원본은 `assets/`에 두고 `tools/`의 변환 스크립트로 `graphics/`를 만든다.
+- **커밋·푸시는 사용자가 요청할 때만.** 끝나면 "커밋할까요?"로 묻는다. 커밋할 때 `git add -A`를 쓰지 말고 파일을 골라서 올린다 (과거에 `Python/` 폴더 180MB가 푸시됐다가 되돌린 적이 있다). 올리기 전에 `git status`로 이상한 폴더가 없는지 확인.
+- 화면 변경은 빌드 후 mGBA에서 직접 보고 확인한 뒤 보고한다 (아래 자동 스크린샷 사용).
+- 사용자가 그림(대개 AI 생성 일러스트)을 주면 GBA 스타일로 줄여 넣는 작업이 많다. 원본은 `assets/`에 두고 `tools/`의 변환 스크립트로 `graphics/`를 만든다. 적용하기 전에 시안(`build/` 미리보기)을 먼저 보여 주고 승인받는 흐름을 선호한다.
+- 확인이 끝난 시안·스크린샷은 `SendUserFile`로 바로 보내 준다.
+- 결정이 필요한 곳은 선택지와 추천을 같이 제시한다.
 
 ## 환경 (집 PC DSLA3DU, Windows)
 - 엔진: Butano 21.8.0 (C++) — `C:\gba\butano` (라이브러리 `C:\gba\butano\butano`)
 - 툴체인: devkitARM (GCC 16.1.0) — `C:\devkitPro`
 - 에뮬레이터: mGBA 0.10.5 — `C:\Program Files\mGBA\mGBA.exe`
-- Python 3.14.7 (PATH에 있음), Pillow 사용
+- Python 3.14 (PATH에 있음), Pillow 사용
 - Makefile: `ROMTITLE := HOOKEDSMITH`, `ROMCODE := HKSM`, `LIBBUTANO := ../butano/butano`
-- EXTTOOL(빌드 전 자동 실행): `tools/make_font.py` → `tools/make_cutscenes.py`
+- EXTTOOL(빌드 전 자동 실행): `tools/make_font.py` → `make_cutscenes.py` → `make_swords.py`(검 그림 + 연출용 `fx` 그림) → `make_music.py`
 
 ## 빌드 / 실행
-일반 cmd(MSYS2 셸 아님)에서:
-```
-cd C:\gba\hookedsmith
-make -j8
-"C:\Program Files\mGBA\mGBA.exe" hookedsmith.gba
-```
-- Bash/PowerShell에서는 `DEVKITARM=C:\devkitPro\devkitARM`, `DEVKITPRO=C:\devkitPro` 환경변수를 넣고 `C:\devkitPro\msys2\usr\bin\make.exe`를 직접 부른다.
-- `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡혀야 한다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
-- mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
+- **일반+디버그 동시 빌드: PowerShell 도구에서** `& 'C:\Windows\System32\cmd.exe' /c 'tools\build_both.bat'` (`cmd`만 쓰면 msys의 cmd가 잡힌다). 결과: `hookedsmith.gba`(일반), `hookedsmith_debug.gba`(디버그, `build_debug/` 폴더를 따로 써서 섞이지 않고 저장 파일 `.sav`도 따로 생긴다). `.bat`은 ASCII만 쓴다(cmd가 시스템 코드 페이지로 읽음).
+- 수동 빌드: `DEVKITARM=C:\devkitPro\devkitARM`, `DEVKITPRO=C:\devkitPro` 환경변수를 넣고 `C:\devkitPro\msys2\usr\bin\make.exe -j8`. 디버그는 `make -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG`.
+- **Bash 도구에서 `powershell -Command`로 빌드하지 말 것**: 다른 `python`이 잡혀 PIL 오류가 나고 Python 설치 관리자가 저장소 안에 `Python/`을 설치해 버린다. Bash 도구의 python으로 큰 파일을 고치다 쓰기 오류가 나기도 한다 → 파일 수정용 python 스크립트는 파일로 써서 PowerShell로 실행하는 편이 안전하다 (heredoc 이스케이프 문제도 피한다).
+- mGBA가 ROM을 열고 있으면 링크가 실패한다. 빌드 전에 mGBA를 모두 닫는다 (`Get-Process mGBA | Stop-Process`).
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
-- 일반+디버그 동시 빌드: `tools\build_both.bat` (일반 `hookedsmith.gba`, 디버그 `hookedsmith_debug.gba`). 디버그는 `build_debug/` 폴더를 따로 써서 서로 섞이지 않고, 저장 파일(`.sav`)도 ROM 이름별로 따로 생긴다. PowerShell에서는 `& 'C:\Windows\System32\cmd.exe' /c 'tools\build_both.bat'`로 부른다(`cmd`만 쓰면 msys의 cmd가 잡힌다). 배치 파일은 ASCII만 쓴다(cmd가 시스템 코드 페이지로 읽음).
-- 디버그 빌드 수동: `make -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 ↑로 $100,000·방지권 5장·잡템 각 5개, B를 누른 채 ↑로 파산 상태, +1 이상에서 R로 "무조건 실패/무조건 성공/끔" 순환, L로 단계를 +5→+16→+28로 점프(성공 연출 확인용). (예전처럼 같은 `build/`에서 플래그만 바꾸면 make가 다시 컴파일하지 않으니 쓰지 않는다.)
-- Bash 도구에서 `powershell -Command`로 빌드하지 말 것: 다른 `python`이 잡혀 PIL 오류가 나고, Python 설치 관리자가 저장소 안에 `Python/` 폴더(180MB)를 설치해 버린다(실제로 한 번 커밋·푸시됐다가 되돌림). 빌드는 PowerShell 도구에서 `toolsuild_both.bat`으로 한다. 커밋 전에는 `git status`로 이상한 폴더가 없는지 확인한다.
 - cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
+- 줄바꿈: `core.autocrlf=true`라 "LF will be replaced by CRLF" 경고는 정상이다. 작업 폴더 파일은 CRLF, 저장소는 LF.
 
-### mGBA
-- 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Backspace (config.ini의 keySelect는 지금 32=Space로 되어 있으니 안 먹으면 Space)
-- RTC: mGBA는 홈브류의 시계를 자동으로 켜지 않는다. `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`이 들어 있다 (섹션 이름은 `gba.override.`가 아니라 `override.`). mGBA를 닫은 상태에서만 고칠 것(종료할 때 덮어씀). 없으면 타이틀이 항상 낮.
-- 자동 스크린샷(포커스 문제 없이): `tools/mgba_auto.ps1`을 도트 소스(`. tools\mgba_auto.ps1`)로 불러 `Start-Game`으로 mGBA를 `-3 -C screenshotPath=build\shots`로 띄우고, `Press $VK.A`처럼 창에 키 메시지를 직접 보낸 뒤 `Shot '이름'`(F12)으로 240x160 PNG를 `build/shots/`에 저장한다. 변수 `$VK`를 `$vk`로 덮어쓰지 말 것(PowerShell은 대소문자 구분 없음).
-- 화면 확인(computer-use): 모니터가 두 대(BenQ GW2780 가로, BenQ GL2580 세로)라 창이 어느 쪽에 뜰지 모른다. 실행 후 PowerShell `(New-Object -ComObject WScript.Shell).AppActivate(<mGBA PID>)`로 앞으로 가져온 뒤 `hold_key`(0.1초)로 입력한다. 짧은 `key`나 반복 입력은 게임이 못 받는다. `open_application`은 빈 mGBA를 새로 띄우니 쓰지 않는다.
+### 디버그 빌드 키 (`hookedsmith_debug.gba`)
+HARD가 열려 있고, 강화 화면에서: **↑** = $100,000·방지권 5장·잡템 각 5개·보관 검, **B를 누른 채 ↑** = 파산 상태(게임 오버 확인), **+1 이상에서 R** = "무조건 실패 → 무조건 성공 → 끔" 순환, **+1 이상에서 L** = 단계를 +5→+16→+21→+22→+23→+24→+25→+27→+28 순서로 점프 (연출·재료 강화비 확인용).
 
-## 현재 상태 (마지막 커밋 a73e4e0)
-흐름: 스플래시(Powered by Butano → JAY'S LOFT) → 타이틀 → 강화 화면 ⇄ 상점(L) / 화구(R) / 창고(←) / 잡화(↓)
-- STORY = EASY: 오프닝 컷씬 후 강화 화면
-- HARD: 컷씬 없음. STORY 클리어 후 해금 예정이라 지금은 회색·선택 불가 (`main()`의 `hard_unlocked`)
-- OPTION: "COMING SOON"만 뜬다
+### mGBA 조작·스크린샷
+- 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Space(이 PC 설정), 방향키.
+- RTC: `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`이 들어 있다 (mGBA를 닫은 상태에서만 고칠 것). 없으면 시간대가 항상 낮.
+- **자동 스크린샷(포커스 문제 없이, 권장)**: `. tools\mgba_auto.ps1`로 불러 `Start-Game <rom>`(mGBA를 `-3 -C screenshotPath=build\shots`로 실행), `Press $VK.A`(창에 키 메시지를 직접 보냄), `Shot '이름'`(F12 → 240x160 PNG를 `build/shots/`에 저장). 키 이름: `$VK.A/B/L/R/START/SELECT/LEFT/UP/RIGHT/DOWN`. 변수 `$VK`를 `$vk`로 덮어쓰지 말 것(PowerShell은 대소문자 구분 안 함). `Start-Game`은 `build/shots/*.png`를 지우니, 시험마다 따로 돌려서 결과를 바로 처리한다. 연출 확인은 `Stopwatch`로 프레임 시각(1프레임 ≈ 16.7ms)에 맞춰 `Shot`을 찍는다.
+- 큰 확대본 만들기: Pillow로 `NEAREST` 4배.
+- computer-use로 mGBA를 직접 조작하면 포커스가 바탕화면(알림 창 등)에 잡혀 입력이 막히는 일이 잦다. 위 자동 스크린샷 방법을 쓸 것.
 
-### 타이틀·스플래시
-- 타이틀 메뉴: 아이콘 한 줄(가운데 HARD, 양옆 STORY·OPTION, 이름은 아이콘 아래). 아이콘은 `assets/graphics/title/title_menu_icons.webp` → `tools/make_title_icons.py`(수동 실행, 32px). ←/→로 고르고 A·START로 결정. 고른 것만 밝고 위아래로 흔들림. 잠긴 HARD는 흑백이고 고를 수는 있지만 누르면 "HARD - LOCKED".
-- 타이틀 음악: `assets/audio/title_chiptune.wav`(8bit 모노, 18157Hz) → `tools/make_music.py`가 빌드 때 `audio/title_chiptune.xm`(샘플 전체 forward loop)으로 변환. 타이틀 시작 때 `bn::music_items::title_chiptune.play(1)`, 메뉴를 고르면 페이드와 함께 볼륨을 줄이고 `bn::music::stop()`. wav를 `dmg_audio/`에 넣으면 안 됨(그 폴더는 DMG 사운드용). 곡을 더 넣을 땐 `assets/audio/`에 wav를 두면 같은 방식으로 변환된다. 원곡이 있다면 배포 전 사용 허가 확인.
-- 컷씬 음악: `assets/audio/story_chiptune_sad.wav`(같은 방식으로 XM 변환). 오프닝 컷씬이 시작할 때 재생해 반복하고, 마지막 장면의 페이드 아웃과 함께 끈다(HARD는 컷씬이 없어 음악 없음).
-- 타이틀 그림은 RTC 시각으로 낮(06~16)/노을(16~21)/밤(21~06). 시계가 없으면 낮.
-- 스튜디오 로고(JAY'S LOFT)는 은색·금색 로고 그림(`assets/graphics/splash/jays_loft_logo.webp`)을 `tools/make_splash_logo.py`(수동 실행, 기본 50px)로 줄인 64x64 스프라이트 `splash_logo`를 화면 한가운데에 놓는다. 예전 배경 그림(`splash_studio`)은 삭제했다 (git 기록에 있음).
-- 난수 시드는 타이틀에서 메뉴를 고른 프레임 수.
+## 현재 상태 (마지막 커밋 823e741)
+흐름: 스플래시(Powered by Butano → JAY'S LOFT 로고) → 타이틀 → STORY/HARD 선택 → 시작 화면(NEW GAME / 슬롯 3개) → [STORY NEW GAME만 오프닝 컷씬] → 강화 화면 ⇄ 상점(L) / 화구(R) / 창고(←) / 잡화(↓) / 일시정지(START) / 게임 오버
+- 구현 끝: +0~+29 강화·판매·방지권·잡템·상점·화구·창고, 시간대별 성공률 보정, 세이브 3슬롯, 일시정지, 게임 오버(파산), 단계별 성공 연출 4종, 실패·방지권 복구·+28 낚시 연출, 목록 화면 아이콘·흑백 배경.
+- **없는 것**: +29 엔딩 화면과 HARD 해금 연결, OPTION 항목, 영어, 음악·효과음(타이틀·컷씬 음악만 있음), 랜덤 이벤트.
+- HARD: 컷씬 없음. 해금은 `hs::save::unlock_hard()`를 엔딩에서 부르면 된다 (지금은 영구히 잠김, 디버그 빌드만 열림).
+- 자세한 규칙·확률·메시지·연출 표는 `docs/GAME_MANUAL.md`.
 
-### 오프닝 컷씬
-- 원본 `assets/graphics/cutscene/*.bmp`(240x112, 16색 이하, 확장자만 bmp이고 실제 PNG). `tools/make_cutscenes.py`가 빌드 때 `graphics/`에 256x256 4bpp BMP와 텍스트 박스 배경을 만든다. 팔레트 0번(가장 많은 색)을 backdrop 색으로 맞춘다.
-- 씬 목록과 대사는 `src/main.cpp`의 `opening_scenes`. 화자 이름은 노란색, A로 넘기기, 대기 중 오른쪽 아래에 ▼ 깜빡임, 씬 전환 페이드.
-- 대사는 자동 줄바꿈. 첫 줄 228px, 둘째 줄 212px(▼ 자리)를 넘으면 assert.
+### 코드 지도
+- `src/main.cpp` — 모든 화면 (`run_splash`, `run_title`, `run_start_select`, `run_opening_cutscene`, `run_forge`(강화 화면, 가장 큼), `run_shop`, `run_storage`(창고·잡화), `run_crafting`(화구), `run_pause`, `run_game_over`, `main()`).
+- `include/economy_data.h` — 모든 수치 표(단계·상점·레시피·검 이름). `include/economy.h` + `src/economy.cpp` — 경제 로직(`upgrade`, `destroy`, `sell`, `buy`, `craft`, `is_bankrupt`, `success_pct`, `take_snapshot/restore`).
+- `include/save.h` + `src/save.cpp` — SRAM 세이브(슬롯 3개 + HARD 해금 머리글). `include/time_band.h` + `src/time_band.cpp` — 낮/노을/밤.
+- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표). 원본은 `assets/graphics/<종류>/`.
 
-### 강화 화면 배치 (240x160)
-- 배경: 대장간 그림(`assets/graphics/forge/forge_bg_source.webp` → `tools/make_forge_bg.py`, 수동 실행, 8bpp 64색). 가운데 검·모루는 지우고 스프라이트(검은 단계마다 한 장씩 `assets/graphics/swords/sword_NN_name.png` → `tools/make_swords.py`가 빌드 때 `graphics/sword_NN.bmp`로 변환, 모루 `tools/make_anvil.py`)를 올린다. 검 그림 규격: 32x64, 4bpp 인덱스, 0번 투명, 그림은 y 0~52·x 7~24. 글자 자리(위·아래 가운데)는 배경을 어둡게 눌러 둔다.
-- 아이콘 버튼(모두 40px, `tools/make_icons.py`, 원본 `assets/graphics/icons/ui_icons_v2.webp`): 상점(L) 왼쪽 위, 화구(R) 오른쪽 위(상점·화구는 +0 검일 때만 컬러·사용 가능, 그 밖에는 회색), 창고(←)·잡화(↓) 왼쪽, 판매(B)·강화(A) 오른쪽. 키 글자는 아이콘 구석: 화구 R=왼쪽 아래, 강화 A·판매 B=왼쪽 위, 상점 L=오른쪽 아래, 창고 ←·잡화 ↓=오른쪽 위 (소지금 글자와 안 겹치게, `badge_corner`). 판매·강화는 못 쓸 때 회색.
-- 위쪽 가운데: 이름(+N은 단계별 색: +0 회색 / +1~5 흰색 / +6~16 파랑 / +17~29 빨강)과 성공률 두 줄뿐. 칼 왼쪽 = 판매가, 칼 오른쪽 = 강화비(이름 줄 + 값 줄, `info_left_x`·`info_right_x`). 아래 가운데 = 메시지 자리(`show_message`, 한 줄 y 60 / 두 줄 54·66, 줄 폭 약 70px, `\n`으로 줄 나눔): 강화 성공!(파랑) / 강화 실패..(빨강), 방지권 질문도 여기.
-- 소지금은 오른쪽 아래(노랑 + 주황 외곽선, 외곽선 폰트), 방지권 수는 목록 화면 위쪽에 나온다. 1,000 이상은 `$1.3K`/`$2.4M`처럼 줄여 표시(`format_money_short`).
-- **강화 화면은 스프라이트 팔레트(16개)도 빠듯하다.** 지금 쓰는 것: 기본 글자(외곽선 폰트와 공유) 1, 소지금 1, 글자 색 회색·파랑·빨강 3(회색은 못 쓰는 버튼 글자와 공유), 버튼 아이콘 6, 모루 1, 검 1 = 13 + 재료 강화비 아이콘 1 + 연출용 `fx` 1 (별·파편·가루를 한 장으로 합쳤다). 검이 바뀔 때 새 검 팔레트가 잠깐 하나 더 필요하다. 새 색 글자·그림을 더할 땐 새 팔레트를 만들지 말고 이미 있는 팔레트(`money_palette`, `red_tint`, `blue_tint`, `gray_tint`)를 돌려 쓸 것. 부족하면 "BPP4 palette create failed"로 멈춘다.
-- 스프라이트 타일(1024개)이 빠듯하다. 화면을 오갈 때 `main()`에서 `bn::core::update()`를 한 번 불러 이전 화면의 타일을 반환시킨다 (안 하면 "Sprite tiles allocate failed").
+### 주요 설계 결정 (왜 이렇게 했나)
+- 강화 화면: 위쪽 가운데는 이름·성공률만, 칼 왼쪽 판매가 / 오른쪽 강화비, 아래 가운데는 메시지 자리(전부 외곽선 글자, 줄 폭 약 70px, `\n`으로 두 줄). 키 글자는 소지금과 안 겹치게 아이콘 구석에 둔다(`badge_corner`).
+- 망치질 중에는 이름·판매가·강화비를 강화 전 값으로 유지하고, +29 성공은 폭발 순간(210프레임)에야 +29로 바꾼다 → +28 실패 "낚시 연출"과 끝까지 구분되지 않는다 (`reveal_hold`).
+- 아이콘마다 자기 15색 팔레트를 쓴다(목록 화면은 팔레트가 남는다). 강화 화면은 다르다 → 아래 주의.
+- 시간대는 저장하지 않고 강화할 때마다 시계로 정한다. 시계를 바꾸는 것은 막지 않는다.
+- 검 이름은 일단 원작 한글 이름.
 
-### 경제 (`docs/ECONOMY_SPEC.md`)
-- 수치는 `include/economy_data.h`, 로직은 `include/economy.h` + `src/economy.cpp`, 화면은 `src/main.cpp`.
-- +0~+29 구현 (+29가 최종 검 = 엔딩, 엔딩 연출은 아직). +21~+27은 재료 강화: 보관한 검(+19·+21·+22) 또는 잡템을 소모(`level_row`의 `cost_sword`/`cost_material`/`cost_qty`). 검 이름은 `include/economy_data.h`의 `sword_names`(원작 한글 이름). 금액은 `$` 표시.
-- 실패 = 파괴 + 잡템 0~5개(확률 10/25/30/20/10/5%, `drop_count_pct`). 방지권이 충분하면 쓸지 묻고, 쓰면 단계 유지.
-- 상점(L): 방지권 1/3장, 워프 +9/+13/+14/+15 (+0 검일 때만, 50%).
-- 창고(←): 보관한 검 목록(A 꺼내기 = 현재 검과 맞바꿈, 현재가 +0이면 버림 / R 현재 검 보관). 잡화(↓): 잡템 목록(보기만).
-- SELECT 도움말(강화 화면): 배경·검·모루 흑백, 아이콘 컬러 + 아이콘 가운데에 이름, 버튼을 누르고 있는 동안만 위쪽 가운데 세 줄에 설명(검은 숨김). 설명 문구는 `src/main.cpp`의 `help_texts` (원하는 문구로 수정).
-- 화구(R, 옛 조합소): 잡템 → 방지권 / 검(창고로).
-- 스펙에 없어 임시로 정한 값: 시작 스토리 $10,000 / 하드 $20,000(원작 100만원·200만원 ÷ 100), 보관함 8칸, 잡템 이름(4글자 이하), 워프 확률 50%.
-
-### 코드·그래픽 규칙
-- 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다 (한글 13px 폭). 같은 글자로 사방 외곽선을 두른 `hs::font_outline`(`hs_font_outline.h`)도 함께 만들어지고, 지금은 일시정지 화면에서만 쓴다 (폭 +2/+1). 팔레트는 같아서 색 바꾸는 방식도 같다.
-- 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
+## 코드·그래픽 규칙과 주의 (여기서 자주 막힌다)
+- **강화 화면은 스프라이트 팔레트(16개)가 빠듯하다.** 쓰는 것: 기본 글자(외곽선 폰트와 공유) 1, 소지금 1, 글자 색 회색·파랑·빨강 3(회색은 못 쓰는 버튼 글자와 공유), 버튼 아이콘 6, 모루 1, 검 1 = 13 + 재료 강화비 아이콘 1 + 연출용 `fx` 1. 검이 바뀔 때 새 검 팔레트가 잠깐 하나 더 필요하다. **새 색 글자·그림은 새 팔레트를 만들지 말고 기존 팔레트(`money_palette`, `red_tint`, `blue_tint`, `gray_tint`)를 돌려 쓸 것.** 부족하면 "BPP4 palette create failed"로 멈춘다. (아이콘 팔레트를 한 장으로 합치는 게 어려운 이유: 못 쓸 때 회색 처리가 팔레트 단위.)
+- 스프라이트 타일(1024개)도 빠듯하다. 화면을 오갈 때 `main()`에서 `bn::core::update()`를 한 번 불러 이전 화면의 타일을 반환시킨다 (안 하면 "Sprite tiles allocate failed"). 스프라이트는 최대 128개.
+- 한글 폰트: `tools/make_font.py`가 소스의 문자열 리터럴에서 글자를 모아 자동 생성한다 (한글 13px 폭). 같은 글자의 사방 외곽선 폰트 `hs::font_outline`도 함께 생긴다 (폭 +2/+1, 메시지·일시정지·소지금에 쓴다). 두 폰트의 팔레트는 같아서 색 바꾸는 방식도 같다 (`create_tinted_font_palette`, `create_two_tone_font_palette`, `text_line::set_sticky_palette`).
+- 글자 색을 바꿀 때는 새로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
 - `bn::string<N>`은 바이트 수 기준 (한글 1자 = 3바이트). 넘치면 게임이 멈추니 넉넉히 잡는다.
-- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`(게임 오버 그림, 원본 `assets/graphics/gameover/`), `make_item_icons.py --write`(잡템·방지권·워프권 아이콘 → `graphics/ico_*.bmp`, 원본 `assets/graphics/items/`), `make_splash_logo.py [크기]`(스플래시 로고), `make_menu_bgs.py`(상점·화구·창고·잡화 흑백 배경, 원본 `assets/graphics/menu_bg/`), `make_sword_icons.py --write`(검 30개 아이콘 → `graphics/ico_sword_NN.bmp`, 검 그림을 바꾸면 다시 실행). 목록 화면(상점·화구·창고·잡화)에 붙이는 아이콘 표는 `main.cpp`의 `material_icons`, `sword_icons`. 원본을 바꾸면 직접 실행.
-- 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색(예: 모루의 밝은 파란색)을 다른 색과 합쳐 버린다.
+- 스프라이트 글자(Butano `sprite_text_generator`)는 글자를 스프라이트 몇 개로 묶는다. `text_line`(main.cpp)에 `set_x/set_y/set_palette/set_offset/set_visible`이 있다.
+- 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색을 합쳐 버린다.
+- 검 그림 규격: 32x64, 4bpp 인덱스, 0번 투명, 그림은 y 0~52·x 7~24. 변환 때 프레임 4개(원래·금·위 조각·아래 조각)가 자동 생성된다.
+- Butano 팁: `bn::sprite_ptr`을 `optional`로 들고 있다가 `.reset()`하면 타일·팔레트가 반환된다. `sword.set_item(item, 프레임)`으로 프레임을 바꾼다. 화면 번쩍임은 `bn::bg_palettes::set_fade` + `bn::sprite_palettes::set_fade`.
 
-## 정해 둔 것 / 미정
-- 세이브(SRAM 3슬롯 + HARD 해금 머리글)는 구현됨: `include/save.h`, `src/save.cpp`. 강화 화면 START → 일시정지(Resume/Save/Quit), 타이틀에서 STORY/HARD를 고르면 START 화면(NEW GAME + 슬롯 3개, `run_start_select`)이 열린다. NEW GAME만 STORY 컷씬을 보고 슬롯은 바로 시작. 저장 항목은 `economy::take_snapshot()/restore()`. HARD 해금(`unlock_hard()`)은 +29 엔딩 때 연결한다. 테스트하면 ROM 옆에 `hookedsmith.sav`가 생긴다.
-- 시간대(`include/time_band.h`): 낮/노을/밤. 강화 성공률에서 0/2/4%p를 뺀다(`economy::success_pct()`). 게임 오버(파산, `economy::is_bankrupt()` + `run_game_over()`)는 구현됨. 디버그 빌드에서 B를 누른 채 ↑로 파산 상태를 만들 수 있다.
-- 강화 화면에서 SELECT 도움말이 켜져 있으면 START가 일시정지를 열지 않는다.
-- computer-use로 mGBA를 조작할 때 포커스가 바탕화면(ShellExperienceHost)에 잡혀 입력이 막히는 일이 있다. AppActivate를 반복해도 안 풀리면 mGBA를 모두 끄고 처음부터 다시 띄운다.
-- 영어 지원(OPTION에서 Language 전환 예정) 검토 결과: 가능하지만 준비가 필요하다.
-  - 한글 문자열이 코드에 박혀 있고(81개+), 한국어 어순으로 조각을 이어 붙이는 문장이 있다 → 언어별 문자열 표 + 문장 틀로 바꿔야 한다.
-  - 영어가 더 길어서 넘치는 곳: 아이콘 사이 메시지 줄, 왼쪽 정보 줄, 창고·조합소 잡템 이름 칸.
-  - 언어 설정도 세이브에 저장해야 한다.
-  - 추천: 화면이 더 늘기 전에 문자열 표부터 만들어 두기.
-- STORY/HARD 난이도 차이는 지금 이지/하드 테이블 차이뿐이다.
+## 미정 / 정해야 할 것
+- HARD 슬롯을 모드별로 나눌지 (지금은 시작 화면이 STORY·HARD 어느 쪽으로 들어가도 같고, 어떤 모드 슬롯이든 불러온다).
+- 판매가·강화비 라벨과 값을 색으로 구분할지, 시간대를 알려 주는 표시를 둘지.
+- 어두운 검 아이콘(+3, +12, +13, +15) 대비 보완 — 목록 배경이 정해진 뒤.
+- "돈이 없다!"는 돈이 0이 되면 파산(게임 오버)이 먼저 걸려 거의 볼 수 없다. 의도와 맞는지 확인.
+- 영어 지원(OPTION에서 Language 전환 예정): 한글 문자열이 코드에 박혀 있고(81개+) 조각을 이어 붙이는 문장이 있다 → 언어별 문자열 표 + 문장 틀로 바꿔야 한다. 영어가 더 길어 넘치는 곳: 메시지 줄(70px), 정보 줄, 잡템 이름 칸. 언어 설정도 세이브에 저장. 화면이 더 늘기 전에 문자열 표부터 만들어 두는 게 좋다.
 
-## 다음 작업 (칼 이미지 교체 포함)
-1. +29 엔딩
-2. 세이브 남은 것: 언어 저장, 슬롯 삭제
-3. 문자열 표 (영어 지원 준비)
-4. 재료 강화 밸런스 확인 (+21~+27 필요 재료 수급 경로, 보관함 8칸이 모자라지 않는지)
-5. OPTION 항목 (Language 등)
+## 다음 작업 후보
+1. **+29 엔딩 + HARD 해금** (`unlock_hard()` 연결). "엔딩으로.." 메시지 뒤에 이어질 화면. 시나리오는 추후 기획 → 시간대(낮/노을/밤)별로 다르게. 틀(임시 화면)부터 만들 수도 있다.
+2. 문자열 표 (영어 지원 준비) → OPTION 항목(Language).
+3. 재료 강화 밸런스 확인 (+21~+27 재료 수급 경로, 창고 8칸이 모자라지 않는지).
+4. 세이브 남은 것: 슬롯 삭제, 언어 저장. 상점·화구·창고·컷씬에서도 START가 동작하게.
+5. 어두운 검 아이콘 보완, 배경 확정.
+6. 음악·효과음 (게임 오버·강화 연출).
