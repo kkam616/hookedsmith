@@ -14,6 +14,7 @@
 #include "bn_keypad.h"
 #include "bn_music.h"
 #include "bn_music_items.h"
+#include "bn_sound.h"
 #include "bn_sound_items.h"
 #include "bn_regular_bg_ptr.h"
 #include "bn_seed_random.h"
@@ -261,6 +262,11 @@ bn::string<24> format_money_short(int value)
 void play_menu_move()
 {
     bn::sound_items::sfx_menu_move.play(bn::fixed(0.6));
+}
+
+void play_select()
+{
+    bn::sound_items::sfx_select.play(bn::fixed(0.8));
 }
 
 bn::string<32> sword_label(int level)
@@ -665,6 +671,7 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
             }
             else
             {
+                play_select();
                 seed = frame;
                 fade_screen(false, true);
                 bn::music::stop();
@@ -720,43 +727,94 @@ constexpr int frame_cracked = 1;
 constexpr int frame_upper = 2;
 constexpr int frame_lower = 3;
 
-// 강화 화면 배경음 (tools/make_bgm.py): +6~16 보통, +17~27 같은 곡을 빠르게, +28 느리고 무거운 곡, 그 밖에는 없음
-int forge_bgm_track = -1;
+// 강화 화면 배경음 (tools/make_bgm.py): +6~16 보통, +17~27 같은 곡을 빠르게, +28 느리고 무거운 곡, 그 밖에는 없음.
+// 곡이 바뀌거나 꺼질 때는 서서히 작아지고(페이드 아웃), 켜질 때는 서서히 커진다(페이드 인).
+constexpr int bgm_fade_frames = 45;
 
-void sync_forge_bgm(int level)
+int forge_bgm_track = -1;       // 지금 재생 중인 곡 (-1 없음)
+int forge_bgm_want = -1;        // 레벨이 원하는 곡
+bn::fixed forge_bgm_volume = 0;
+
+bn::fixed forge_bgm_target(int track)
 {
-    const int want = level >= hs::max_level ? -1 : level >= 28 ? 2 : level >= 17 ? 1 : level >= 6 ? 0 : -1;
+    return track == 2 ? bn::fixed(0.8) : bn::fixed(0.7);
+}
 
-    if(want == forge_bgm_track && (want < 0 || bn::music::playing()))
+void set_forge_bgm_level(int level)
+{
+    forge_bgm_want = level >= hs::max_level ? -1 : level >= 28 ? 2 : level >= 17 ? 1 : level >= 6 ? 0 : -1;
+}
+
+// 매 프레임 한 번: 원하는 곡이 아니면 줄이고, 줄이다 0이 되면 끄고 새 곡을 0에서 켠다
+void tick_forge_bgm()
+{
+    if(forge_bgm_track >= 0 && ! bn::music::playing())
     {
-        return;
+        forge_bgm_track = -1;
     }
 
-    if(forge_bgm_track >= 0 || want >= 0)
+    if(forge_bgm_track != forge_bgm_want && forge_bgm_track >= 0)
     {
-        bn::music::stop();
+        forge_bgm_volume -= forge_bgm_target(forge_bgm_track) / bgm_fade_frames;
+
+        if(forge_bgm_volume <= 0)
+        {
+            bn::music::stop();
+            forge_bgm_track = -1;
+            forge_bgm_volume = 0;
+        }
+        else
+        {
+            bn::music::set_volume(forge_bgm_volume);
+        }
     }
-
-    forge_bgm_track = want;
-
-    switch(want)
+    else if(forge_bgm_track < 0 && forge_bgm_want >= 0)
     {
+        forge_bgm_volume = 0;
 
-    case 0:
-        bn::music_items::bgm_forge_normal.play(bn::fixed(0.7));
-        break;
+        switch(forge_bgm_want)
+        {
 
-    case 1:
-        bn::music_items::bgm_forge_fast.play(bn::fixed(0.7));
-        break;
+        case 0:
+            bn::music_items::bgm_forge_normal.play(0);
+            break;
 
-    case 2:
-        bn::music_items::bgm_forge_doom.play(bn::fixed(0.8));
-        break;
+        case 1:
+            bn::music_items::bgm_forge_fast.play(0);
+            break;
 
-    default:
-        break;
+        default:
+            bn::music_items::bgm_forge_doom.play(0);
+            break;
+        }
+
+        forge_bgm_track = forge_bgm_want;
     }
+    else if(forge_bgm_track >= 0)
+    {
+        const bn::fixed target = forge_bgm_target(forge_bgm_track);
+
+        if(forge_bgm_volume < target)
+        {
+            forge_bgm_volume += target / bgm_fade_frames;
+
+            if(forge_bgm_volume > target)
+            {
+                forge_bgm_volume = target;
+            }
+
+            bn::music::set_volume(forge_bgm_volume);
+        }
+    }
+}
+
+// 연출 중 음악을 즉시 끊고, 다시 켜지지 않게 한다
+void cut_forge_bgm()
+{
+    bn::music::stop();
+    forge_bgm_track = -1;
+    forge_bgm_want = -1;
+    forge_bgm_volume = 0;
 }
 
 enum class forge_exit
@@ -1502,6 +1560,12 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 grand_buildup(t, offset_x, offset_y, fade, fade_color, scale);
 
+                if(t == 1)
+                {
+                    bn::sound_items::sfx_glow.play();       // 실패 낚시와 같은 빛 차오르는 소리
+                    forge_bgm_want = -1;                    // 음악은 서서히 잦아든다
+                }
+
                 if(t == grand_peak)
                 {
                     // 가장 눈부신 순간에 비로소 +29 검과 이름, 성공 메시지가 드러난다 (실패 낚시와 끝까지 구분되지 않게)
@@ -1512,7 +1576,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
                 if(t == grand_peak - sfx_latency_frames)
                 {
-                    bn::sound_items::sfx_success.play();
+                    bn::sound_items::sfx_success_3.play();
                 }
             }
             else
@@ -1631,8 +1695,14 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         if(t == doom_silence_start)
         {
-            bn::music::stop();      // 빛이 꺼지는 순간 음악도 뚝 끊긴다
-            forge_bgm_track = -1;
+            cut_forge_bgm();        // 빛이 꺼지는 순간 음악도 뚝 끊긴다
+        }
+
+        // +29 성공과 똑같이 빛이 차오르는 소리로 시작하고, 빛이 꺼지기 직전에 "빠직"
+        if(t == 1)
+        {
+            bn::sound_items::sfx_glow.play();
+            forge_bgm_want = -1;                            // 음악은 서서히 잦아든다
         }
 
         if(t == doom_silence_start - sfx_latency_frames)
@@ -1760,11 +1830,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             }
         }
 
+        tick_forge_bgm();
+
         switch(current_phase)
         {
 
         case phase::IDLE:
-            sync_forge_bgm(eco.level());
+            set_forge_bgm_level(eco.level());
 
             // 파산: 메시지(판매·파괴 결과)를 다 보여 준 뒤 게임 오버
             if(message_timer == 0 && ! help_mode && eco.is_bankrupt())
@@ -1924,9 +1996,23 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
             }
 
-            if(upgrade_succeeded && phase_frame == hammer_frames - sfx_latency_frames && eco.level() <= hs::max_level - 1)
+            if(upgrade_succeeded && phase_frame == hammer_frames - sfx_latency_frames && eco.level() < hs::max_level)
             {
-                bn::sound_items::sfx_success.play();
+                // 연출 단계(+1~5 / +6~16 / +17~28)와 같은 결의 성공음
+                const int level_now = eco.level();
+
+                if(level_now <= 5)
+                {
+                    bn::sound_items::sfx_success_0.play();
+                }
+                else if(level_now <= 16)
+                {
+                    bn::sound_items::sfx_success_1.play();
+                }
+                else
+                {
+                    bn::sound_items::sfx_success_2.play();
+                }
             }
 
             if(phase_frame >= hammer_frames)
@@ -2027,6 +2113,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         case phase::PROTECT_ASK:
             if(bn::keypad::a_pressed())
             {
+                play_select();
                 eco.protect();
                 current_phase = phase::RESTORE;
                 phase_frame = 0;
@@ -2217,6 +2304,7 @@ void run_shop(hs::economy& eco, bn::seed_random& random)
         }
         else if(bn::keypad::a_pressed())
         {
+            play_select();
             const hs::shop_item& item = hs::shop_items[selected];
             bn::string<48> result_line;
 
@@ -2408,6 +2496,7 @@ void run_storage(hs::economy& eco, bool sword_rack)
         }
         else if(count > 0 && bn::keypad::a_pressed())
         {
+            play_select();
             eco.take_out_sword(selected);
             bn::string<48> result_line = sword_label(eco.level());
             result_line += " 장착";
@@ -2526,6 +2615,7 @@ void run_crafting(hs::economy& eco)
         }
         else if(bn::keypad::a_pressed())
         {
+            play_select();
             const hs::recipe& recipe = hs::recipes[selected];
             bn::string<48> result_line;
 
@@ -2771,6 +2861,7 @@ pause_choice run_pause(const hs::economy& eco)
             }
             else if(bn::keypad::a_pressed())
             {
+                play_select();
                 if(selected == 0)
                 {
                     fade_screen(false);
@@ -2798,6 +2889,7 @@ pause_choice run_pause(const hs::economy& eco)
         {
             if(bn::keypad::a_pressed())
             {
+                play_select();
                 confirming = false;
                 save_to_slot();
             }
@@ -2833,6 +2925,7 @@ pause_choice run_pause(const hs::economy& eco)
             }
             else if(bn::keypad::a_pressed())
             {
+                play_select();
                 if(hs::save::info(slot).used)
                 {
                     confirming = true;
@@ -2916,6 +3009,7 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
         }
         else if(bn::keypad::a_pressed())
         {
+            play_select();
             if(selected == 0)
             {
                 fade_screen(false);
@@ -3187,6 +3281,8 @@ int main()
         bn::string_view message = "";
         bool quit = false;
 
+        cut_forge_bgm();
+
         while(! quit)
         {
             forge_exit exit = run_forge(eco, random, message);
@@ -3216,9 +3312,15 @@ int main()
 
             case forge_exit::PAUSE:
                 quit = run_pause(eco) == pause_choice::QUIT;
+
+                if(quit)
+                {
+                    cut_forge_bgm();
+                }
                 break;
 
             case forge_exit::GAME_OVER:
+                cut_forge_bgm();
                 run_game_over();
                 quit = true;        // 타이틀로
                 break;

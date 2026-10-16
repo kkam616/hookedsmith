@@ -4,7 +4,9 @@
 출력: audio/*.wav (+ 이어 듣기용 build/sfx_preview_all.wav)
   sfx_menu_move.wav   메뉴·슬롯 이동 (짧은 삑)
   sfx_hammer.wav      강화 버튼 후 망치질 "땅! 땅!" (0.32초, 소리는 0·0.17초)
-  sfx_success.wav     강화 성공 (올라가는 팡파르)
+  sfx_select.wav      선택·확정 (밝게 올라가는 두 음 "띠딩")
+  sfx_success_0~3.wav 단계별 강화 성공 (0: +1~5 / 1: +6~16 / 2: +17~28 / 3: +29)
+  sfx_glow.wav        +28→+29 시도와 +29 성공이 공유하는 빛 차오르는 소리 (3.45초, 결과 직전에 정점)
   sfx_fail.wav        강화 실패·파괴 (가벼운 빠직: 짧은 잡음 두 번 + 작은 하강 삑, 약 0.15초)
 수동 실행: python -B tools/make_sfx.py
 (음악은 assets/audio/*.wav → make_music.py → audio/*.xm. 효과음은 이 스크립트가 audio/에 wav로 바로 만든다.)
@@ -150,11 +152,99 @@ def fail():
     return mix(place(first, 0.0, total), place(chirp, 0.015, total), place(second, 0.06, total))
 
 
+# ── 5) 선택·확정: 밝게 올라가는 두 음 (이동 소리보다 길고 또렷하다) ───────────────────────
+def select():
+    first = render(0.045, lambda t, p: square(988, t, 0.25) * envelope(p, 0.045, 0.0, 1.0) * 0.6)         # B5
+    second = render(0.11, lambda t, p: (square(1319, t, 0.25) * 0.55 + square(1319 * 2, t, 0.5) * 0.15) * envelope(p, 0.11, 0.0, 1.6))  # E6
+    click = render(0.012, lambda t, p: Noise(3).next(1) * (1 - p) * 0.25)
+    total = 0.16
+    return mix(place(click, 0.0, total), place(first, 0.0, total), place(second, 0.045, total))
+
+
+# ── 6) 단계별 성공음: 연출 4단계(흰색 → 파랑 → 빨강 → +29 황금)와 같은 결로 점점 커진다 ───────────
+def arp(notes, step, seconds, wave_duty=0.25, volume=0.5, total=None):
+    """음 목록을 step초 간격으로 쌓는다. 마지막 음은 seconds 길이"""
+    total = total or (step * (len(notes) - 1) + seconds)
+    parts = []
+
+    for i, freq_ in enumerate(notes):
+        length = seconds if i == len(notes) - 1 else step * 1.6
+        parts.append(place(render(length, lambda t, p, f=freq_: square(f, t, wave_duty) * envelope(p, length, 0.03, 0.9) * volume), step * i, total))
+
+    return mix(*parts)
+
+
+def chord(freqs, seconds, volume=0.3, vibrato=0.0):
+    return render(seconds, lambda t, p: sum(square(f * (1 + vibrato * math.sin(t * 38)), t, 0.25 if i % 2 else 0.5) for i, f in enumerate(freqs)) / len(freqs) * envelope(p, seconds, 0.02, 1.2) * volume * 2)
+
+
+def crash(seconds, volume):
+    noise = Noise(5)
+    return render(seconds, lambda t, p: noise.next(1) * math.exp(-t * (5 if seconds > 0.5 else 14)) * volume)
+
+
+def success_0():       # +1~+5: 작고 가벼운 세 음 "또로롱"
+    return mix(arp([784, 988, 1175], 0.055, 0.14, 0.25, 0.5, 0.40))
+
+
+def success_1():       # +6~+16: 도미솔도 + 반짝이는 높은 음 (기존 성공음을 조금 더 키움)
+    run = arp([523, 659, 784, 1047, 1319], 0.06, 0.22, 0.25, 0.5, 0.95)
+    tail = place(chord([1047, 1319, 1568], 0.5, 0.28, 0.004), 0.30, 0.95)
+    spark = place(render(0.08, lambda t, p: square(2093, t, 0.125) * envelope(p, 0.08, 0.0, 1.0) * 0.28), 0.34, 0.95)
+    return mix(run, tail, spark)
+
+
+def success_2():       # +17~+28: 힘찬 팡파르 — 으뜸화음 위로 솟는 선율, 마지막은 길게 끈 화음 + 심벌
+    melody = arp([392, 523, 659, 784, 1047], 0.07, 0.5, 0.25, 0.5, 1.4)
+    hit = place(chord([262, 330, 392, 523], 0.9, 0.36), 0.28, 1.4)
+    clash = place(crash(0.5, 0.30), 0.28, 1.4)
+    bass = place(render(0.5, lambda t, p: triangle(131, t) * envelope(p, 0.5, 0.0, 0.8) * 0.6), 0.28, 1.4)
+    return mix(melody, hit, clash, bass)
+
+
+def success_3():       # +29: 대폭발 — 올라가는 쓸어올림 → 거대한 화음 + 긴 심벌 + 떨리는 마지막 음
+    total = 3.0
+    sweep = render(0.45, lambda t, p: square(260 * 2 ** (p * 3), t, 0.25) * envelope(p, 0.45, 0.4, 0.5) * 0.35)
+    run = arp([523, 659, 784, 1047, 1319, 1568, 2093], 0.055, 1.1, 0.25, 0.4, total)
+    run = place(run, 0.40, total)
+    boom = place(chord([131, 196, 262, 330, 392, 523, 659], 2.4, 0.42, 0.003), 0.55, total)
+    low = place(render(1.6, lambda t, p: triangle(65, t) * envelope(p, 1.6, 0.0, 0.7) * 0.7), 0.55, total)
+    shimmer = place(crash(1.6, 0.34), 0.55, total)
+    return mix(place(sweep, 0.0, total), run, boom, low, shimmer)
+
+
+def glow():            # +28→+29 시도·+29 성공 공통: 빛이 점점 차오르는 3.45초 (결과가 나오기 직전에 정점)
+    total = 3.45
+    rng = random.Random(21)
+
+    def swell(t, p):
+        f = 300 * 2 ** (p * 3.2)
+        trem = 0.75 + 0.25 * math.sin(t * (14 + 30 * p))
+        body = square(f, t, 0.125) * 0.5 + square(f * 1.004, t, 0.25) * 0.5
+        return body * trem * (p ** 1.6) * 0.42 * (1 - max(0.0, (p - 0.97) / 0.03))
+
+    out = render(total, swell)
+
+    time_ = 0.25
+    while time_ < total - 0.12:            # 반짝이는 높은 음: 갈수록 촘촘해진다
+        p = time_ / total
+        f = rng.choice((1568, 1976, 2349, 2637, 3136))
+        ping = render(0.05, lambda t, q, f=f: square(f, t, 0.125) * (1 - q) ** 1.5 * (0.10 + 0.2 * p))
+        out = mix(out, place(ping, time_, total))
+        time_ += 0.30 - 0.24 * p
+    return out
+
+
 def main():
     sounds = [
         ('sfx_menu_move', menu_move()),
         ('sfx_hammer', hammer()),
-        ('sfx_success', success()),
+        ('sfx_select', select()),
+        ('sfx_success_0', success_0()),
+        ('sfx_success_1', success_1()),
+        ('sfx_success_2', success_2()),
+        ('sfx_success_3', success_3()),
+        ('sfx_glow', glow()),
         ('sfx_fail', fail()),
     ]
 
