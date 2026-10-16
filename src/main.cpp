@@ -14,6 +14,7 @@
 #include "bn_keypad.h"
 #include "bn_music.h"
 #include "bn_music_items.h"
+#include "bn_sound_items.h"
 #include "bn_regular_bg_ptr.h"
 #include "bn_seed_random.h"
 #include "bn_sprite_palette_ptr.h"
@@ -254,6 +255,12 @@ bn::string<24> format_money_short(int value)
 
     result.push_back(million ? 'M' : 'K');
     return result;
+}
+
+// 효과음 (tools/make_sfx.py가 audio/*.wav로 만든다)
+void play_menu_move()
+{
+    bn::sound_items::sfx_menu_move.play(bn::fixed(0.6));
 }
 
 bn::string<32> sword_label(int level)
@@ -631,10 +638,12 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
         if(bn::keypad::left_pressed())
         {
             selected = (selected + menu_count - 1) % menu_count;
+            play_menu_move();
         }
         else if(bn::keypad::right_pressed())
         {
             selected = (selected + 1) % menu_count;
+            play_menu_move();
         }
 
         if(selected != styled)
@@ -721,7 +730,12 @@ enum class forge_exit
     GAME_OVER,  // 파산
 };
 
-constexpr int hammer_frames = 40;
+constexpr int hammer_frames = 24;
+// 소리는 play() 뒤 약 3프레임(믹서·에뮬레이터 버퍼) 늦게 들린다. 결과를 미리 아는 소리(성공·실패)는 그만큼 앞당겨 틀고,
+// 망치질은 소리가 들리는 때에 맞춰 움찔한다. 어긋나면 이 값만 고친다.
+constexpr int sfx_latency_frames = 3;
+// sfx_hammer의 "땅!" 두 번이 들리는 프레임 (소리의 0초·0.17초)
+constexpr int hammer_hit_frames[2] = { sfx_latency_frames, sfx_latency_frames + 10 };
 constexpr int success_frames = 24;
 constexpr int fail_frames = 24;
 constexpr int crack_frame = 12;         // 실패 떨림 도중 금이 가는 프레임
@@ -1456,6 +1470,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     refresh_status();
                     show_message("강화 성공!", &blue_tint);
                 }
+
+                if(t == grand_peak - sfx_latency_frames)
+                {
+                    bn::sound_items::sfx_success.play();
+                }
             }
             else
             {
@@ -1570,6 +1589,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         bn::fixed scale = 1;        // 쌓이는 동안의 부풀기
         bn::fixed scale_y = 1;      // 바스러질 때 내려앉기
         bn::fixed dim = 0;          // 정적 이후 화면이 어두워진다
+
+        if(t == doom_silence_start - sfx_latency_frames)
+        {
+            bn::sound_items::sfx_fail.play();
+        }
 
         if(t < doom_silence_start)
         {
@@ -1751,6 +1775,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     upgrade_succeeded = eco.upgrade(random);
                     current_phase = phase::HAMMERING;
                     phase_frame = 0;
+                    bn::sound_items::sfx_hammer.play();
                     refresh_status();
                     message_text("땅! 땅! 땅!");
                 }
@@ -1833,7 +1858,29 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         case phase::HAMMERING:
             ++phase_frame;
-            sword.set_y(sword_y + ((phase_frame / 4) % 2 == 0 ? 0 : 2));
+
+            // 망치질 소리(sfx_hammer)의 두 번 "땅!"에 맞춰 검이 움찔한다 (0.22초 ≈ 13프레임 간격)
+            {
+                int jolt = 0;
+
+                for(int hit : hammer_hit_frames)
+                {
+                    int elapsed = phase_frame - hit;
+
+                    if(elapsed >= 0 && elapsed < 6)
+                    {
+                        jolt = elapsed < 3 ? 3 : 1;
+                    }
+                }
+
+                sword.set_y(sword_y + jolt);
+
+            }
+
+            if(upgrade_succeeded && phase_frame == hammer_frames - sfx_latency_frames && eco.level() <= hs::max_level - 1)
+            {
+                bn::sound_items::sfx_success.play();
+            }
 
             if(phase_frame >= hammer_frames)
             {
@@ -1893,6 +1940,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             sword.set_x(phase_frame >= fail_frames ? 0 : ((phase_frame / 2) % 2 == 0 ? -3 : 3));
 
             // 절반쯤에서 "빠직": 오른쪽 위에서 왼쪽 아래로 금이 가며 번쩍인다
+            if(phase_frame == crack_frame - sfx_latency_frames)
+            {
+                bn::sound_items::sfx_fail.play();
+            }
+
             if(phase_frame == crack_frame)
             {
                 sword.set_item(*sword_items[sword_level], frame_cracked);
@@ -2109,10 +2161,12 @@ void run_shop(hs::economy& eco, bn::seed_random& random)
         if(bn::keypad::up_pressed())
         {
             selected = (selected + hs::shop_item_count - 1) % hs::shop_item_count;
+            play_menu_move();
         }
         else if(bn::keypad::down_pressed())
         {
             selected = (selected + 1) % hs::shop_item_count;
+            play_menu_move();
         }
         else if(bn::keypad::a_pressed())
         {
@@ -2274,10 +2328,12 @@ void run_storage(hs::economy& eco, bool sword_rack)
         if(count > 0 && bn::keypad::up_pressed())
         {
             selected = (selected + count - 1) % count;
+            play_menu_move();
         }
         else if(count > 0 && bn::keypad::down_pressed())
         {
             selected = (selected + 1) % count;
+            play_menu_move();
         }
         else if(sword_rack && bn::keypad::r_pressed())
         {
@@ -2414,10 +2470,12 @@ void run_crafting(hs::economy& eco)
         if(bn::keypad::up_pressed())
         {
             selected = (selected + hs::recipe_count - 1) % hs::recipe_count;
+            play_menu_move();
         }
         else if(bn::keypad::down_pressed())
         {
             selected = (selected + 1) % hs::recipe_count;
+            play_menu_move();
         }
         else if(bn::keypad::a_pressed())
         {
@@ -2650,11 +2708,13 @@ pause_choice run_pause(const hs::economy& eco)
             if(bn::keypad::up_pressed())
             {
                 selected = (selected + item_count - 1) % item_count;
+                play_menu_move();
                 frame = 8;
             }
             else if(bn::keypad::down_pressed())
             {
                 selected = (selected + 1) % item_count;
+                play_menu_move();
                 frame = 8;
             }
             else if(bn::keypad::start_pressed() || bn::keypad::b_pressed())
@@ -2707,11 +2767,13 @@ pause_choice run_pause(const hs::economy& eco)
             if(bn::keypad::up_pressed())
             {
                 slot = (slot + hs::save::slot_count - 1) % hs::save::slot_count;
+                play_menu_move();
                 frame = 8;
             }
             else if(bn::keypad::down_pressed())
             {
                 slot = (slot + 1) % hs::save::slot_count;
+                play_menu_move();
                 frame = 8;
             }
             else if(bn::keypad::b_pressed())
@@ -2791,11 +2853,13 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
         if(bn::keypad::up_pressed())
         {
             selected = (selected + list.line_count() - 1) % list.line_count();
+            play_menu_move();
             frame = 8;
         }
         else if(bn::keypad::down_pressed())
         {
             selected = (selected + 1) % list.line_count();
+            play_menu_move();
             frame = 8;
         }
         else if(bn::keypad::b_pressed())

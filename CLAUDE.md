@@ -48,7 +48,7 @@ HARD가 열려 있고, 강화 화면에서: **↑** = $100,000·방지권 5장·
 ## 현재 상태 (마지막 커밋 823e741)
 흐름: 스플래시(Powered by Butano → JAY'S LOFT 로고) → 타이틀 → STORY/HARD 선택 → 시작 화면(NEW GAME / 슬롯 3개) → [STORY NEW GAME만 오프닝 컷씬] → 강화 화면 ⇄ 상점(L) / 화구(R) / 창고(←) / 잡화(↓) / 일시정지(START) / 게임 오버
 - 구현 끝: +0~+29 강화·판매·방지권·잡템·상점·화구·창고, 시간대별 성공률 보정, 세이브 3슬롯, 일시정지, 게임 오버(파산), 단계별 성공 연출 4종, 실패·방지권 복구·+28 낚시 연출, 목록 화면 아이콘·흑백 배경.
-- **없는 것**: +29 엔딩 화면과 HARD 해금 연결, OPTION 항목, 영어, 음악·효과음(타이틀·컷씬 음악만 있음), 랜덤 이벤트.
+- **없는 것**: +29 엔딩 화면과 HARD 해금 연결, OPTION 항목, 영어, 랜덤 이벤트, 게임 오버·엔딩 음악. 효과음은 4종만 있다(메뉴 이동·망치질·성공·실패, 아래).
 - HARD: 컷씬 없음. 해금은 `hs::save::unlock_hard()`를 엔딩에서 부르면 된다 (지금은 영구히 잠김, 디버그 빌드만 열림).
 - 자세한 규칙·확률·메시지·연출 표는 `docs/GAME_MANUAL.md`.
 
@@ -56,7 +56,16 @@ HARD가 열려 있고, 강화 화면에서: **↑** = $100,000·방지권 5장·
 - `src/main.cpp` — 모든 화면 (`run_splash`, `run_title`, `run_start_select`, `run_opening_cutscene`, `run_forge`(강화 화면, 가장 큼), `run_shop`, `run_storage`(창고·잡화), `run_crafting`(화구), `run_pause`, `run_game_over`, `main()`).
 - `include/economy_data.h` — 모든 수치 표(단계·상점·레시피·검 이름). `include/economy.h` + `src/economy.cpp` — 경제 로직(`upgrade`, `destroy`, `sell`, `buy`, `craft`, `is_bankrupt`, `success_pct`, `take_snapshot/restore`).
 - `include/save.h` + `src/save.cpp` — SRAM 세이브(슬롯 3개 + HARD 해금 머리글). `include/time_band.h` + `src/time_band.cpp` — 낮/노을/밤.
-- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표). 원본은 `assets/graphics/<종류>/`.
+- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표), `make_sfx.py`(효과음 4종을 `audio/*.wav`로 만든다). 원본은 `assets/graphics/<종류>/`.
+
+### 효과음 (칩튠, `tools/make_sfx.py` → `audio/sfx_*.wav` → `bn::sound_items::sfx_*`)
+네모파·삼각파·잡음을 파이썬으로 합성한 8bit 모노 18157Hz wav. 수정하려면 스크립트의 각 함수를 고쳐 다시 실행(+ 이어 듣기용 `build/sfx_preview_all.wav`가 같이 생긴다).
+- `sfx_menu_move` (0.04초 단음 "틱", 볼륨 0.6): 선택이 바뀔 때 — 타이틀 메뉴, 시작 화면, 상점·화구·창고 커서, 일시정지 메뉴·슬롯 (`play_menu_move()`).
+- `sfx_hammer` (0.32초): 강화 버튼을 누르는 즉시. 땅 소리 두 번(0·0.17초)에 맞춰 검이 움찔하고 글자는 "땅! 땅! 땅!"이 처음부터 한 번에 뜬다. 망치질은 24프레임.
+- **소리 지연 보정**: 소리는 play() 뒤 약 3프레임 늦게 들린다(믹서·에뮬레이터 버퍼). `sfx_latency_frames`(main.cpp)만큼 성공·실패 소리는 결과 화면보다 앞당겨 틀고(결과를 미리 알기 때문), 망치질 움찔은 그만큼 늦춘다. 어긋나면 이 값만 고친다.
+- `sfx_success` (0.95초): 성공 결과가 나오기 3프레임 전 (+29는 210프레임 폭발 직전).
+- `sfx_fail` (0.15초, 가벼운 빠직): 검에 금이 가기 3프레임 전 (일반 실패는 12프레임째 금, +28 낚시는 빛이 꺼지고 금이 간 순간). 방지권으로 지켜도 금은 가므로 난다.
+- 아직 소리가 없는 곳: 확정(A)·취소(B), 상점 구매, 판매, 복구, 게임 오버, 단계별 성공 차이, 컷씬.
 
 ### 주요 설계 결정 (왜 이렇게 했나)
 - 강화 화면: 위쪽 가운데는 이름·성공률만, 칼 왼쪽 판매가 / 오른쪽 강화비, 아래 가운데는 메시지 자리(전부 외곽선 글자, 줄 폭 약 70px, `\n`으로 두 줄). 키 글자는 소지금과 안 겹치게 아이콘 구석에 둔다(`badge_corner`).
