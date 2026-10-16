@@ -36,7 +36,6 @@
 #include "bn_regular_bg_items_title_day.h"
 #include "bn_regular_bg_items_title_night.h"
 #include "bn_regular_bg_items_title_sunset.h"
-#include "bn_regular_bg_items_splash_studio.h"
 #include "bn_regular_bg_items_cutscene_textbox.h"
 #include "bn_regular_bg_items_scene1_bedside.h"
 #include "bn_regular_bg_items_scene2_anvil.h"
@@ -83,6 +82,7 @@
 #include "bn_sprite_items_sword_28.h"
 #include "bn_sprite_items_sword_29.h"
 #include "bn_sprite_items_shard.h"
+#include "bn_sprite_items_splash_logo.h"
 #include "bn_sprite_items_spark.h"
 #include "bn_sprite_items_dust.h"
 #include "bn_sprite_items_ico_ticket.h"
@@ -437,13 +437,14 @@ void run_splash()
     text_sprites.clear();
 
     // ── 2단계: JAY'S LOFT ────────────────────────────────────────────
-    // 256x256 BMP를 화면 중앙에 맞춰 배치 (256→240: 8픽셀 오프셋)
-    bn::regular_bg_ptr studio_bg = bn::regular_bg_items::splash_studio.create_bg(8, 48);
+    // 로고(tools/make_splash_logo.py, 약 50px)를 화면 한가운데에 놓는다
+    bn::sprite_ptr studio_logo = bn::sprite_items::splash_logo.create_sprite(0, 0);
 
     // 페이드 인
     for(int f = 0; f <= SPLASH_FADE; ++f)
     {
         bn::bg_palettes::set_fade(bn::color(0, 0, 0), bn::fixed(SPLASH_FADE - f) / SPLASH_FADE);
+        bn::sprite_palettes::set_fade(bn::color(0, 0, 0), bn::fixed(SPLASH_FADE - f) / SPLASH_FADE);
         bn::core::update();
     }
 
@@ -456,6 +457,7 @@ void run_splash()
     for(int f = 0; f <= SPLASH_FADE; ++f)
     {
         bn::bg_palettes::set_fade(bn::color(0, 0, 0), bn::fixed(f) / SPLASH_FADE);
+        bn::sprite_palettes::set_fade(bn::color(0, 0, 0), bn::fixed(f) / SPLASH_FADE);
         bn::core::update();
     }
 }

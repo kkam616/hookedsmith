@@ -54,7 +54,7 @@ make -j8
 - 타이틀 음악: `assets/audio/title_chiptune.wav`(8bit 모노, 18157Hz) → `tools/make_music.py`가 빌드 때 `audio/title_chiptune.xm`(샘플 전체 forward loop)으로 변환. 타이틀 시작 때 `bn::music_items::title_chiptune.play(1)`, 메뉴를 고르면 페이드와 함께 볼륨을 줄이고 `bn::music::stop()`. wav를 `dmg_audio/`에 넣으면 안 됨(그 폴더는 DMG 사운드용). 곡을 더 넣을 땐 `assets/audio/`에 wav를 두면 같은 방식으로 변환된다. 원곡이 있다면 배포 전 사용 허가 확인.
 - 컷씬 음악: `assets/audio/story_chiptune_sad.wav`(같은 방식으로 XM 변환). 오프닝 컷씬이 시작할 때 재생해 반복하고, 마지막 장면의 페이드 아웃과 함께 끈다(HARD는 컷씬이 없어 음악 없음).
 - 타이틀 그림은 RTC 시각으로 낮(06~16)/노을(16~21)/밤(21~06). 시계가 없으면 낮.
-- 스튜디오 로고는 원본 위 패널(960x640, 240x160의 4배 픽셀아트)을 4픽셀마다 한 점씩 뽑아 만든 것 (원본 6색).
+- 스튜디오 로고(JAY'S LOFT)는 은색·금색 로고 그림(`assets/graphics/splash/jays_loft_logo.webp`)을 `tools/make_splash_logo.py`(수동 실행, 기본 50px)로 줄인 64x64 스프라이트 `splash_logo`를 화면 한가운데에 놓는다. 예전 배경 그림(`splash_studio`)은 삭제했다 (git 기록에 있음).
 - 난수 시드는 타이틀에서 메뉴를 고른 프레임 수.
 
 ### 오프닝 컷씬
@@ -83,7 +83,7 @@ make -j8
 - 한글 폰트는 빌드 때 `tools/make_font.py`가 소스 문자열에서 글자를 모아 자동 생성한다 (한글 13px 폭). 같은 글자로 사방 외곽선을 두른 `hs::font_outline`(`hs_font_outline.h`)도 함께 만들어지고, 지금은 일시정지 화면에서만 쓴다 (폭 +2/+1). 팔레트는 같아서 색 바꾸는 방식도 같다.
 - 글자 색을 바꿀 때는 `create_private_font_palette()`로 만든 팔레트를 쓴다. 폰트와 색이 같은 팔레트를 만들면 다른 글자가 그 팔레트를 공유해 같이 색이 바뀐다.
 - `bn::string<N>`은 바이트 수 기준 (한글 1자 = 3바이트). 넘치면 게임이 멈추니 넉넉히 잡는다.
-- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`(게임 오버 그림, 원본 `assets/graphics/gameover/`), `make_item_icons.py --write`(잡템·방지권·워프권 아이콘 → `graphics/ico_*.bmp`, 원본 `assets/graphics/items/`), `make_menu_bgs.py`(상점·화구·창고·잡화 흑백 배경, 원본 `assets/graphics/menu_bg/`), `make_sword_icons.py --write`(검 30개 아이콘 → `graphics/ico_sword_NN.bmp`, 검 그림을 바꾸면 다시 실행). 목록 화면(상점·화구·창고·잡화)에 붙이는 아이콘 표는 `main.cpp`의 `material_icons`, `sword_icons`. 원본을 바꾸면 직접 실행.
+- 수동 실행 변환 스크립트(빌드 때 안 돔): `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`(게임 오버 그림, 원본 `assets/graphics/gameover/`), `make_item_icons.py --write`(잡템·방지권·워프권 아이콘 → `graphics/ico_*.bmp`, 원본 `assets/graphics/items/`), `make_splash_logo.py [크기]`(스플래시 로고), `make_menu_bgs.py`(상점·화구·창고·잡화 흑백 배경, 원본 `assets/graphics/menu_bg/`), `make_sword_icons.py --write`(검 30개 아이콘 → `graphics/ico_sword_NN.bmp`, 검 그림을 바꾸면 다시 실행). 목록 화면(상점·화구·창고·잡화)에 붙이는 아이콘 표는 `main.cpp`의 `material_icons`, `sword_icons`. 원본을 바꾸면 직접 실행.
 - 색 줄이기는 `MAXCOVERAGE + kmeans`를 쓴다. `MEDIANCUT`은 개수가 적은 색(예: 모루의 밝은 파란색)을 다른 색과 합쳐 버린다.
 
 ## 정해 둔 것 / 미정
