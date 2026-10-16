@@ -3623,16 +3623,13 @@ void run_opening_cutscene()
 
 // ─── 고양이 이벤트 ──────────────────────────────────────────────────────
 // 강화 배경 위에 창이 열리고, 창 안으로 도트 고양이가 걸어 들어와 앉아 꼬리를 흔든 뒤, 같은 창에 고양이 사진이 나오며 야옹.
-// 창 아래에 "물어왔다" → 받은 것(검 또는 방지권) 메시지. 그림 위치는 tools/make_cat_assets.py의 WINDOW_POS(77, 41)와 맞춘다.
+// 창 아래에 "물어왔다" → 받은 것(검 또는 방지권) 메시지. 장면은 A로 넘긴다(깜빡이는 ▼). 그림 위치는 tools/make_cat_assets.py의 WINDOW_POS(77, 41)와 맞춘다.
 constexpr int cat_interior_left = 80 + 16 - 120;        // 방 안쪽 왼쪽 끝에 놓은 고양이 가운데 x
 constexpr int cat_sit_x = 0;
 constexpr int cat_y = 4;                                // 고양이 가운데 y (발이 방 바닥 위에 닿는다)
 constexpr int cat_walk_start = 24;                      // 고양이가 나타나 걷기 시작하는 프레임
 constexpr int cat_walk_frames = 44;
-constexpr int cat_photo_frame = cat_walk_start + cat_walk_frames + 66;
-constexpr int cat_message_one = cat_photo_frame + 16;
-constexpr int cat_message_two = cat_message_one + 50;
-constexpr int cat_end_frame = cat_message_two + 110;
+constexpr int cat_message_delay = 14;                   // 사진이 나온 뒤 첫 메시지까지
 constexpr int cat_message_y = 44;                       // 창 아래 두 줄 메시지 (가운데 y와 줄 간격)
 constexpr int cat_message_step = 14;
 
@@ -3683,10 +3680,22 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
     bn::music_items::bgm_event_cat.play(bn::fixed(0.9));
     fade_screen(true);
 
+    // 컷씬 대화처럼 깜빡이는 ▼ 로 버튼을 기다린다 (A로 다음 장면). 음악은 계속 반복된다.
+    bn::sprite_text_generator arrow_generator(hs::font);        // 컷씬 대화의 ▼ 와 같은 글꼴·위치 (오른쪽 아래 구석)
+    arrow_generator.set_left_alignment();
+    bn::vector<bn::sprite_ptr, 1> arrow;
+    arrow_generator.generate(indicator_x, second_line_y, "▼", arrow);
+    arrow[0].set_bg_priority(0);
+    arrow[0].set_visible(false);
+
+    // 장면: 0 고양이가 걸어와 앉아 꼬리를 흔든다 → 1 사진이 나오고 "물어왔다" → 2 받은 것 → 끝
+    int page = 0;
+    int page_frame = 0;         // 지금 장면에 들어온 뒤 프레임
+    int photo_countdown = -1;   // A를 누르면 야옹을 먼저 틀고, 소리가 들리는 때(3프레임 뒤)에 사진이 나온다
     int flash = 0;
     int frame = 0;
 
-    while(frame < cat_end_frame)
+    while(true)
     {
         if(frame == 0)
         {
@@ -3695,7 +3704,9 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
             flash = 8;
         }
 
-        if(frame >= cat_walk_start && frame < cat_photo_frame)
+        bool ready = false;
+
+        if(page == 0 && frame >= cat_walk_start)
         {
             const int u = frame - cat_walk_start;
             cat.set_visible(true);
@@ -3710,40 +3721,72 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
             {
                 const int sit_time = u - cat_walk_frames;
                 cat.set_x(cat_sit_x);
-                cat.set_item(bn::sprite_items::cat, 4 + (sit_time < 10 ? 1 : (sit_time / 8) % 3));
+                cat.set_item(bn::sprite_items::cat, 4 + (sit_time < 10 ? 1 : (sit_time / 8) % 3));       // 꼬리 흔들기는 계속 반복
+                ready = sit_time >= 24 && photo_countdown < 0;
             }
         }
-
-        // 소리는 3프레임 늦게 들리니 미리 튼다
-        if(frame == cat_photo_frame - sfx_latency_frames)
+        else if(page == 1)
         {
-            bn::sound_items::sfx_cat.play();
-        }
-
-        if(frame == cat_photo_frame)
-        {
-            room.set_visible(false);
-            cat.set_visible(false);
-            photo.set_visible(true);
-            flash = 8;
-        }
-
-        if(frame == cat_message_one)
-        {
-            show_message("귀여운 고양이가", "뭔가를 물어왔다!");
-        }
-        else if(frame == cat_message_two)
-        {
-            if(gift.is_sword)
+            if(photo_countdown > 0)
             {
-                show_message(sword_label(gift.level), "창고로 들어갔다");
+                --photo_countdown;
+            }
+            else if(photo_countdown == 0)
+            {
+                photo_countdown = -1;
+                room.set_visible(false);
+                cat.set_visible(false);
+                photo.set_visible(true);
+                flash = 8;
+                page_frame = 0;
+            }
+
+            if(photo_countdown < 0 && photo.visible())
+            {
+                if(page_frame == cat_message_delay)
+                {
+                    show_message("귀여운 고양이가", "뭔가를 물어왔다!");
+                }
+
+                ready = page_frame >= cat_message_delay + 12;
+            }
+        }
+        else
+        {
+            ready = page_frame >= 12;
+        }
+
+        arrow[0].set_visible(ready && (frame / indicator_blink_frames) % 2 == 0);
+
+        if(ready && bn::keypad::a_pressed())
+        {
+            if(page == 0)
+            {
+                page = 1;
+                page_frame = 0;
+                photo_countdown = sfx_latency_frames;       // 소리는 3프레임 늦게 들리니 미리 튼다
+                bn::sound_items::sfx_cat.play();
+            }
+            else if(page == 1)
+            {
+                page = 2;
+                page_frame = 0;
+
+                if(gift.is_sword)
+                {
+                    show_message(sword_label(gift.level), "창고로 들어갔다");
+                }
+                else
+                {
+                    bn::string<32> first("방지권 ");
+                    first += bn::to_string<4>(gift.tickets);
+                    first += "장을";
+                    show_message(first, "받았다");
+                }
             }
             else
             {
-                bn::string<32> first("방지권 ");
-                first += bn::to_string<4>(gift.tickets);
-                first += "장을";
-                show_message(first, "받았다");
+                break;
             }
         }
 
@@ -3758,13 +3801,8 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
             }
         }
 
-        // 받은 것을 확인한 뒤에는 A로 바로 끝낼 수 있다
-        if(frame > cat_message_two + 30 && bn::keypad::a_pressed())
-        {
-            break;
-        }
-
         ++frame;
+        ++page_frame;
         bn::core::update();
     }
 
