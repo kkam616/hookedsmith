@@ -720,6 +720,45 @@ constexpr int frame_cracked = 1;
 constexpr int frame_upper = 2;
 constexpr int frame_lower = 3;
 
+// 강화 화면 배경음 (tools/make_bgm.py): +6~16 보통, +17~27 같은 곡을 빠르게, +28 느리고 무거운 곡, 그 밖에는 없음
+int forge_bgm_track = -1;
+
+void sync_forge_bgm(int level)
+{
+    const int want = level >= hs::max_level ? -1 : level >= 28 ? 2 : level >= 17 ? 1 : level >= 6 ? 0 : -1;
+
+    if(want == forge_bgm_track && (want < 0 || bn::music::playing()))
+    {
+        return;
+    }
+
+    if(forge_bgm_track >= 0 || want >= 0)
+    {
+        bn::music::stop();
+    }
+
+    forge_bgm_track = want;
+
+    switch(want)
+    {
+
+    case 0:
+        bn::music_items::bgm_forge_normal.play(bn::fixed(0.7));
+        break;
+
+    case 1:
+        bn::music_items::bgm_forge_fast.play(bn::fixed(0.7));
+        break;
+
+    case 2:
+        bn::music_items::bgm_forge_doom.play(bn::fixed(0.8));
+        break;
+
+    default:
+        break;
+    }
+}
+
 enum class forge_exit
 {
     SHOP,       // L
@@ -1590,6 +1629,12 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         bn::fixed scale_y = 1;      // 바스러질 때 내려앉기
         bn::fixed dim = 0;          // 정적 이후 화면이 어두워진다
 
+        if(t == doom_silence_start)
+        {
+            bn::music::stop();      // 빛이 꺼지는 순간 음악도 뚝 끊긴다
+            forge_bgm_track = -1;
+        }
+
         if(t == doom_silence_start - sfx_latency_frames)
         {
             bn::sound_items::sfx_fail.play();
@@ -1719,6 +1764,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         {
 
         case phase::IDLE:
+            sync_forge_bgm(eco.level());
+
             // 파산: 메시지(판매·파괴 결과)를 다 보여 준 뒤 게임 오버
             if(message_timer == 0 && ! help_mode && eco.is_bankrupt())
             {
