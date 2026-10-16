@@ -4,3 +4,5 @@ build/
 *.sav
 __pycache__/
 build_debug/
+Python/
+python_install_*.log
