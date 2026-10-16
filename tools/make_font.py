@@ -5,6 +5,8 @@ src/, include/ 소스에서 쓰인 비ASCII 글자를 모아 16x16 스프라이�
 - 그 밖의 글자: 굴림 12px로 렌더링 (흰 본체 + 오른쪽/아래 검은 그림자)
 
 출력: graphics/hs_font.bmp, graphics/hs_font.json, include/hs_font.h
+같은 글자로 사방에 검은 외곽선을 두른 폰트도 함께 만든다 (일시정지 화면처럼 배경이 복잡한 곳용):
+graphics/hs_font_outline.bmp, graphics/hs_font_outline.json, include/hs_font_outline.h (hs::font_outline)
 내용이 바뀌었을 때만 파일을 다시 쓰므로 Makefile EXTTOOL로 매 빌드마다 돌려도 된다.
 """
 
@@ -38,7 +40,7 @@ def collect_characters():
     for folder in ('src', 'include'):
         for dirpath, _, filenames in os.walk(os.path.join(ROOT, folder)):
             for filename in filenames:
-                if filename == 'hs_font.h' or not filename.endswith(('.cpp', '.h', '.hpp')):
+                if filename in ('hs_font.h', 'hs_font_outline.h') or not filename.endswith(('.cpp', '.h', '.hpp')):
                     continue
                 with open(os.path.join(dirpath, filename), encoding='utf-8') as f:
                     text = f.read()
@@ -94,22 +96,41 @@ def write_if_changed(path, data):
     return True
 
 
-def main():
-    chars = collect_characters()
-    ascii_widths = read_ascii_widths()
+def draw_outline(image, base_y, mask):
+    """mask(1비트, CELL x CELL)의 본체 둘레 8방향에 검은 외곽선을 칠한다 (본체는 호출한 쪽에서 칠함)"""
+    for y in range(CELL):
+        for x in range(CELL):
+            if mask.getpixel((x, y)):
+                for sy in (-1, 0, 1):
+                    for sx in (-1, 0, 1):
+                        px, py = x + sx, y + sy
+                        if 0 <= px < CELL and 0 <= py < CELL and not mask.getpixel((px, py)):
+                            image.putpixel((px, base_y + py), SHADOW)
 
-    ascii_image = Image.open(ASCII_BMP)
-    raw_palette = ascii_image.getpalette()
-    palette = [tuple(raw_palette[i * 3:i * 3 + 3]) for i in range(16)]
 
+def build_image(chars, ascii_image, outline):
     glyph_count = 94 + len(chars)
     image = Image.new('P', (CELL, CELL * glyph_count), 0)
 
     # ASCII 33~126
     for index in range(94):
-        for y in range(16):
-            for x in range(8):
-                image.putpixel((x, index * CELL + y), ascii_image.getpixel((x, index * 16 + y)))
+        if not outline:
+            for y in range(16):
+                for x in range(8):
+                    image.putpixel((x, index * CELL + y), ascii_image.getpixel((x, index * 16 + y)))
+        else:
+            # 본체(흰색) 점만 가져와 한 칸 오른쪽으로 옮기고 둘레를 검게 두른다
+            mask = Image.new('1', (CELL, CELL), 0)
+            for y in range(16):
+                for x in range(8):
+                    if ascii_image.getpixel((x, index * 16 + y)) == BODY:
+                        mask.putpixel((x + 1, y), 1)
+            base_y = index * CELL
+            draw_outline(image, base_y, mask)
+            for y in range(CELL):
+                for x in range(CELL):
+                    if mask.getpixel((x, y)):
+                        image.putpixel((x, base_y + y), BODY)
 
     # 한글 등
     font = ImageFont.truetype(KOREAN_TTF, KOREAN_SIZE, index=0)
@@ -117,36 +138,45 @@ def main():
         mask = Image.new('1', (CELL, CELL), 0)
         draw = ImageDraw.Draw(mask)
         draw.fontmode = '1'
-        draw.text((0, KOREAN_TOP), char, font=font, fill=1)
+        draw.text((1 if outline else 0, KOREAN_TOP), char, font=font, fill=1)
         base_y = (94 + i) * CELL
-        for y in range(CELL):
-            for x in range(CELL):
-                if mask.getpixel((x, y)):
-                    for sx, sy in ((1, 0), (0, 1), (1, 1)):
-                        px, py = x + sx, y + sy
-                        if px < CELL and py < CELL and not mask.getpixel((px, py)):
-                            image.putpixel((px, base_y + py), SHADOW)
+
+        if outline:
+            draw_outline(image, base_y, mask)
+        else:
+            for y in range(CELL):
+                for x in range(CELL):
+                    if mask.getpixel((x, y)):
+                        for sx, sy in ((1, 0), (0, 1), (1, 1)):
+                            px, py = x + sx, y + sy
+                            if px < CELL and py < CELL and not mask.getpixel((px, py)):
+                                image.putpixel((px, base_y + py), SHADOW)
+
         for y in range(CELL):
             for x in range(CELL):
                 if mask.getpixel((x, y)):
                     image.putpixel((x, base_y + y), BODY)
 
-    widths = list(ascii_widths) + [KOREAN_WIDTH] * len(chars)
+    return image, glyph_count
 
+
+def header_text(chars, widths, name, suffix):
+    """name = 스프라이트 아이템 이름(hs_font), suffix = 변수 이름 꼬리('' 또는 '_outline')"""
+    guard = name.upper() + '_H'
     lines = [
         '// 자동 생성 파일: tools/make_font.py가 만든다. 직접 고치지 말 것.',
         '',
-        '#ifndef HS_FONT_H',
-        '#define HS_FONT_H',
+        '#ifndef %s' % guard,
+        '#define %s' % guard,
         '',
         '#include "bn_sprite_font.h"',
         '#include "bn_utf8_characters_map.h"',
-        '#include "bn_sprite_items_hs_font.h"',
+        '#include "bn_sprite_items_%s.h"' % name,
         '',
         'namespace hs',
         '{',
         '',
-        'constexpr bn::utf8_character font_utf8_characters[] = {',
+        'constexpr bn::utf8_character font_utf8_characters%s[] = {' % suffix,
     ]
     for start in range(0, len(chars), 16):
         lines.append('    ' + ' '.join('"%s",' % c for c in chars[start:start + 16]))
@@ -155,32 +185,58 @@ def main():
     lines += [
         '};',
         '',
-        'constexpr int8_t font_character_widths[] = {',
+        'constexpr int8_t font_character_widths%s[] = {' % suffix,
     ]
     for start in range(0, len(widths), 24):
         lines.append('    ' + ' '.join('%d,' % w for w in widths[start:start + 24]))
     lines += [
         '};',
         '',
-        'constexpr bn::span<const bn::utf8_character> font_utf8_characters_span(font_utf8_characters);',
+        'constexpr bn::span<const bn::utf8_character> font_utf8_characters_span%s(font_utf8_characters%s);' % (suffix, suffix),
         '',
-        'constexpr auto font_utf8_characters_map = bn::utf8_characters_map<font_utf8_characters_span>();',
+        'constexpr auto font_utf8_characters_map%s = bn::utf8_characters_map<font_utf8_characters_span%s>();' % (suffix, suffix),
         '',
-        'constexpr bn::sprite_font font(',
-        '        bn::sprite_items::hs_font, font_utf8_characters_map.reference(), font_character_widths);',
+        'constexpr bn::sprite_font font%s(' % suffix,
+        '        bn::sprite_items::%s, font_utf8_characters_map%s.reference(), font_character_widths%s);' % (name, suffix, suffix),
         '',
         '}',
         '',
         '#endif',
         '',
     ]
+    return '\n'.join(lines)
+
+
+def main():
+    chars = collect_characters()
+    ascii_widths = read_ascii_widths()
+
+    ascii_image = Image.open(ASCII_BMP)
+    raw_palette = ascii_image.getpalette()
+    palette = [tuple(raw_palette[i * 3:i * 3 + 3]) for i in range(16)]
 
     changed = False
-    changed |= write_if_changed(OUT_BMP, write_bmp_4bpp(OUT_BMP, image, palette))
-    changed |= write_if_changed(OUT_JSON, '{\n    "type": "sprite",\n    "height": 16\n}\n')
-    changed |= write_if_changed(OUT_HEADER, '\n'.join(lines))
-    if changed:
-        print('hs_font: %d glyphs (%d non-ASCII)' % (glyph_count, len(chars)))
+
+    for outline in (False, True):
+        name = 'hs_font_outline' if outline else 'hs_font'
+        suffix = '_outline' if outline else ''
+        image, glyph_count = build_image(chars, ascii_image, outline)
+
+        if outline:
+            widths = [w + 2 for w in ascii_widths] + [KOREAN_WIDTH + 1] * len(chars)    # 외곽선 두 겹(좌우 1px)만큼 넓다
+        else:
+            widths = list(ascii_widths) + [KOREAN_WIDTH] * len(chars)
+
+        out_bmp = os.path.join(ROOT, 'graphics', name + '.bmp')
+        out_json = os.path.join(ROOT, 'graphics', name + '.json')
+        out_header = os.path.join(ROOT, 'include', name + '.h')
+        changed |= write_if_changed(out_bmp, write_bmp_4bpp(out_bmp, image, palette))
+        changed |= write_if_changed(out_json, '{\n    "type": "sprite",\n    "height": 16\n}\n')
+        changed |= write_if_changed(out_header, header_text(chars, widths, name, suffix))
+
+        if changed:
+            print('%s: %d glyphs (%d non-ASCII)' % (name, glyph_count, len(chars)))
+
     return 0
 
 

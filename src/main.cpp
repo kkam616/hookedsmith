@@ -84,6 +84,7 @@
 #include "economy.h"
 #include "common_variable_8x8_sprite_font.h"
 #include "hs_font.h"
+#include "hs_font_outline.h"
 
 namespace
 {
@@ -2316,10 +2317,22 @@ pause_choice run_pause(const hs::economy& eco)
     constexpr int step_y = 20;
     constexpr const char* default_hint = "A 선택  B 돌아가기";
 
-    bn::sprite_text_generator center_generator(hs::font);
+    // 강화 화면 배경을 흑백으로 어둡게 깔고, 글자는 검은 외곽선이 있는 폰트(hs::font_outline)로 쓴다
+    bn::regular_bg_ptr background = bn::regular_bg_items::forge_bg.create_bg(title_bg_x, title_bg_y);
+    bn::bg_palette_ptr background_palette = background.palette();
+    background_palette.set_grayscale_intensity(1);
+    background_palette.set_fade(bn::color(0, 0, 0), bn::fixed(0.3));
+
+    bn::sprite_ptr anvil = bn::sprite_items::anvil.create_sprite(0, anvil_y);
+    anvil.set_z_order(1);
+    bn::sprite_palette_ptr anvil_palette = anvil.palette();
+    anvil_palette.set_grayscale_intensity(1);
+    anvil_palette.set_fade(bn::color(0, 0, 0), bn::fixed(0.3));
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
     center_generator.set_center_alignment();
 
-    bn::sprite_text_generator left_generator(hs::font);
+    bn::sprite_text_generator left_generator(hs::font_outline);
     left_generator.set_left_alignment();
 
     bn::vector<bn::sprite_ptr, 8> title_sprites;
