@@ -608,6 +608,8 @@ constexpr int menu_label_y = 51;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
+constexpr const char* game_version = "v0.1.0";
+
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
     bn::sprite_text_generator left_generator(hs::font);
@@ -660,6 +662,13 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
     }
 
     text_line notice_text(center_generator, 0, 74);     // 이름 아래, 화면 맨 아래
+
+    // 버전 표시: 왼쪽 아래 구석 (작은 8x8 글꼴)
+    bn::sprite_text_generator version_generator(common::variable_8x8_sprite_font);
+    version_generator.set_left_alignment();
+    bn::vector<bn::sprite_ptr, 8> version_sprites;
+    version_generator.generate(-116, 72, game_version, version_sprites);
+
     int selected = int(title_choice::STORY);
     int notice_frames = 0;
     unsigned frame = 0;
