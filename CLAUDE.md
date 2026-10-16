@@ -32,7 +32,8 @@ make -j8
 - `make`는 `C:\devkitPro\msys2\usr\bin\make.exe`가 잡혀야 한다. 이 PC에는 QMK MSYS도 있으니 다른 make가 잡히면 PATH를 확인한다.
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 게임 창을 닫고 빌드한다.
 - ROMCODE를 바꾸면 `.gba`/`.elf`를 지우고 빌드해야 헤더에 반영된다.
-- 디버그 빌드: `build/main.*`, `build/economy.*`를 지우고 `make -j8 USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 ↑로 $100,000·방지권 5장·잡템 각 5개를 받는다. 끝나면 같은 파일을 지우고 일반 빌드로 되돌린다 (플래그가 바뀌어도 make가 다시 컴파일하지 않음).
+- 일반+디버그 동시 빌드: `tools\build_both.bat` (일반 `hookedsmith.gba`, 디버그 `hookedsmith_debug.gba`). 디버그는 `build_debug/` 폴더를 따로 써서 서로 섞이지 않고, 저장 파일(`.sav`)도 ROM 이름별로 따로 생긴다. PowerShell에서는 `& 'C:\Windows\System32\cmd.exe' /c 'tools\build_both.bat'`로 부른다(`cmd`만 쓰면 msys의 cmd가 잡힌다). 배치 파일은 ASCII만 쓴다(cmd가 시스템 코드 페이지로 읽음).
+- 디버그 빌드 수동: `make -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG`. HARD가 열리고 강화 화면에서 ↑로 $100,000·방지권 5장·잡템 각 5개, B를 누른 채 ↑로 파산 상태. (예전처럼 같은 `build/`에서 플래그만 바꾸면 make가 다시 컴파일하지 않으니 쓰지 않는다.)
 - cmd의 `tar`는 devkitPro의 GNU tar가 먼저 잡혀 `C:` 경로를 못 읽는다. zip은 `C:\Windows\System32\tar.exe`로 푼다.
 
 ### mGBA
