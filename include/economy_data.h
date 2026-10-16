@@ -203,6 +203,16 @@ constexpr int shop_item_count = sizeof(shop_items) / sizeof(shop_items[0]);
 // 원작에 명시가 없어 임시
 constexpr int warp_success_pct = 50;
 
+// 고양이 이벤트: 강화 실패 횟수가 목표에 닿으면 고양이가 보은으로 검(없으면 방지권)을 물어온다.
+// 목표는 시작할 때와 고양이가 다녀갈 때마다 아래 셋 중에서 무작위로 정한다. 디버그 빌드는 바로 확인하도록 2·3·4번이다.
+#ifdef HS_DEBUG
+constexpr int cat_targets[3] = { 2, 3, 4 };
+#else
+constexpr int cat_targets[3] = { 26, 30, 62 };
+#endif
+constexpr int cat_gift_levels[4] = { 17, 18, 20, 21 };      // 선물로 받는 검 단계 (이 중 무작위)
+constexpr int cat_gift_tickets = 3;                         // 창고가 가득 찼을 때 대신 받는 방지권
+
 // 조합소 (잡템 → 방지권 또는 보관 검)
 enum class craft_output : uint8_t
 {

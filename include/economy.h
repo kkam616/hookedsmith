@@ -36,6 +36,14 @@ enum class craft_result
     STORAGE_FULL,
 };
 
+// 고양이가 물어온 것: 검(level) 또는 방지권(tickets)
+struct cat_gift
+{
+    bool is_sword = false;
+    int level = 0;
+    int tickets = 0;
+};
+
 // 세이브에 들어갈 상태 전부 (난이도, 소지금, 단계, 방지권, 잡템, 보관 검)
 class economy
 {
@@ -46,6 +54,8 @@ public:
     [[nodiscard]] difficulty diff() const { return _diff; }
     [[nodiscard]] int32_t money() const { return _money; }
     [[nodiscard]] int level() const { return _level; }
+    [[nodiscard]] int fail_count() const { return _fail_count; }
+    [[nodiscard]] int cat_target() const { return _cat_target; }
     [[nodiscard]] int best_level() const { return _best_level; }     // 지금까지 도달한 가장 높은 단계 (판매·파괴해도 남는다)
     [[nodiscard]] int tickets() const { return _tickets; }
     [[nodiscard]] int material_quantity(material item) const { return _materials[int(item)]; }
@@ -75,6 +85,11 @@ public:
     [[nodiscard]] bool can_protect() const { return protect_available() && _tickets >= row().protect_cost; }
     void protect();
     drop destroy(bn::seed_random& random);
+
+    // 고양이 이벤트 (강화 실패 횟수 → 목표에 닿으면 등장)
+    [[nodiscard]] bool cat_due() const { return _cat_target > 0 && _fail_count >= _cat_target; }
+    void ensure_cat_target(bn::seed_random& random);        // 목표가 아직 없으면(새 게임·예전 저장) 정한다
+    cat_gift cat_visit(bn::seed_random& random);            // 선물을 주고 횟수를 0으로, 목표를 다시 정한다
 
     [[nodiscard]] bool can_sell() const { return row().sell_usd > 0; }
     int32_t sell();
@@ -107,6 +122,8 @@ public:
         int32_t money = 0;
         int level = 0;
         int best_level = 0;
+        int fail_count = 0;
+        int cat_target = 0;
         int tickets = 0;
         bn::array<int16_t, material_count> materials = {};
         bn::vector<int8_t, max_stored_swords> stored_swords;
@@ -131,6 +148,8 @@ private:
     int32_t _money = 0;
     int _level = 0;
     int _best_level = 0;
+    int _fail_count = 0;
+    int _cat_target = 0;
     int _tickets = 0;
     bn::array<int16_t, material_count> _materials = {};
     bn::vector<int8_t, max_stored_swords> _stored_swords;

@@ -31,7 +31,8 @@ namespace
         int16_t tickets;
         int16_t materials[material_count];
         int8_t stored[max_stored_swords];
-        uint16_t best_level;      // 예전 저장 파일은 이 자리가 0이라 현재 단계가 최고기록이 된다
+        uint8_t best_level;       // 예전 저장 파일은 이 자리가 0이라 현재 단계가 최고기록이 된다 (예전에는 uint16, 위쪽 바이트는 0)
+        uint8_t cat_state;        // 아래쪽 6비트 = 강화 실패 횟수, 위쪽 2비트 = 고양이 목표 번호(0 없음, 1~3 = cat_targets[번호-1]). 예전 저장은 0
         uint32_t checksum;
     };
 
@@ -92,6 +93,8 @@ namespace
         state.money = data.money;
         state.level = data.level;
         state.best_level = data.best_level > max_level ? data.level : data.best_level;
+        state.fail_count = data.cat_state & 0x3F;
+        state.cat_target = (data.cat_state >> 6) == 0 ? 0 : cat_targets[(data.cat_state >> 6) - 1];
         state.tickets = data.tickets;
 
         for(int index = 0; index < material_count; ++index)
@@ -160,7 +163,19 @@ void write(int slot, const economy& eco)
     data.version = format_version;
     data.diff = uint8_t(state.diff);
     data.level = uint8_t(state.level);
-    data.best_level = uint16_t(state.best_level);
+    data.best_level = uint8_t(state.best_level);
+
+    int target_index = 0;
+
+    for(int index = 0; index < 3; ++index)
+    {
+        if(state.cat_target == cat_targets[index])
+        {
+            target_index = index + 1;
+        }
+    }
+
+    data.cat_state = uint8_t((state.fail_count > 63 ? 63 : state.fail_count) | (target_index << 6));
     data.stored_count = uint8_t(state.stored_swords.size());
     data.money = state.money;
     data.tickets = int16_t(state.tickets > 32767 ? 32767 : state.tickets);

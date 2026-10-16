@@ -8,6 +8,8 @@
   sfx_success_0~3.wav 단계별 강화 성공 (0: +1~5 / 1: +6~16 / 2: +17~28 / 3: +29)
   sfx_glow.wav        +28→+29 시도와 +29 성공이 공유하는 빛 차오르는 소리 (3.45초, 결과 직전에 정점)
   sfx_sell_0~2.wav    판매 (0: +1~5 동전 몇 닢 / 1: +6~16 쏟아지는 동전 / 2: +17~28 금화 소나기 + 팡파르)
+  sfx_event.wav       이벤트 발생 알림 (반짝, 모든 이벤트 공용)
+  sfx_cat.wav         고양이 야옹 야옹 (고양이 이벤트)
   sfx_fail.wav        강화 실패·파괴 (가벼운 빠직: 짧은 잡음 두 번 + 작은 하강 삑, 약 0.15초)
 수동 실행: python -B tools/make_sfx.py
 (음악은 assets/audio/*.wav → make_music.py → audio/*.xm. 효과음은 이 스크립트가 audio/에 wav로 바로 만든다.)
@@ -272,6 +274,64 @@ def sell_3():       # +17~28: 금화 소나기 + 팡파르 화음 + 심벌
     return mix(*parts)
 
 
+# ── 8) 고양이 울음 "야옹": 짧게 올라가는 "야" + 길게 내려가는 "옹" (네모파의 음높이를 미끄러뜨린다) ─────────────
+def glide(start_hz, end_hz, seconds, duty, volume, vibrato=0.0, attack=0.06):
+    phase = [0.0]
+
+    def generator(t, p):
+        freq = start_hz + (end_hz - start_hz) * p
+        freq *= 1 + vibrato * math.sin(t * 46)
+        phase[0] = (phase[0] + freq / RATE) % 1.0
+        value = 1.0 if phase[0] < duty else -1.0
+        return value * envelope(p, seconds, attack, 0.9) * volume
+
+    return render(seconds, generator)
+
+
+def pwm_glide(points, seconds, volume=0.5, vibrato=0.0, vib_rate=40, duty_lo=0.15, duty_hi=0.5, attack=0.05, decay=0.8):
+    """points [(위치 0~1, Hz)] 사이를 미끄러지며 듀티를 바꿔 콧소리 같은 음색 변화를 준다"""
+    phase = [0.0]
+
+    def freq_at(p):
+        for (p0, f0), (p1, f1) in zip(points, points[1:]):
+            if p0 <= p <= p1:
+                return f0 + (f1 - f0) * (p - p0) / max(1e-9, p1 - p0)
+        return points[-1][1]
+
+    def generator(t, p):
+        f = freq_at(p) * (1 + vibrato * math.sin(t * vib_rate))
+        phase[0] = (phase[0] + f / RATE) % 1.0
+        duty = duty_lo + (duty_hi - duty_lo) * math.sin(math.pi * p)
+        return (1.0 if phase[0] < duty else -1.0) * envelope(p, seconds, attack, decay) * volume
+
+    return render(seconds, generator)
+
+
+def cat_meow():         # 고양이 "야옹 야옹": 짧게 두 번 (0.8초)
+    total = 0.8
+
+    def one(base):
+        ya = pwm_glide([(0, base), (1, base * 1.7)], 0.07, 0.5, 0, 40, 0.25, 0.25, 0.1, 0.9)
+        ong = pwm_glide([(0, base * 1.7), (1, base * 0.8)], 0.2, 0.5, 0.03, 44, 0.375, 0.375, 0.04, 0.9)
+        return mix(place(ya, 0, 0.3), place(ong, 0.06, 0.3))
+
+    return mix(place(one(560), 0, total), place(one(620), 0.4, total))
+
+
+def bell(freq_hz, seconds, volume):
+    """종소리: 기본음 + 3배음, 빨리 줄어든다"""
+    return render(seconds, lambda t, p: (square(freq_hz, t, 0.25) * 0.6 + square(freq_hz * 3, t, 0.125) * 0.25) *
+                  envelope(p, seconds, 0.0, 1.6) * volume)
+
+
+def event_sparkle():    # 이벤트 발생 (고양이 말고 다른 이벤트에서도 쓴다): 높은 종소리가 위로 흩뿌려지는 반짝임 (0.85초)
+    total = 0.85
+    notes = [1047, 1319, 1568, 2093, 2637, 3136]
+    parts = [place(bell(f, 0.22, 0.34), 0.06 * i, total) for i, f in enumerate(notes)]
+    parts.append(place(bell(3136, 0.5, 0.25), 0.36, total))
+    return mix(*parts)
+
+
 def main():
     sounds = [
         ('sfx_menu_move', menu_move()),
@@ -286,6 +346,8 @@ def main():
         ('sfx_sell_0', sell_1()),
         ('sfx_sell_1', sell_2()),
         ('sfx_sell_2', sell_3()),
+        ('sfx_event', event_sparkle()),
+        ('sfx_cat', cat_meow()),
     ]
 
     gap = [0.0] * samples(0.5)

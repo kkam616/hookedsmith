@@ -87,6 +87,7 @@ bool economy::upgrade(bn::seed_random& random)
         return true;
     }
 
+    ++_fail_count;      // 방지권으로 막은 실패도, 파괴된 실패도 센다
     return false;
 }
 
@@ -274,6 +275,8 @@ economy::snapshot economy::take_snapshot() const
     state.money = _money;
     state.level = _level;
     state.best_level = _best_level;
+    state.fail_count = _fail_count;
+    state.cat_target = _cat_target;
     state.tickets = _tickets;
     state.materials = _materials;
     state.stored_swords = _stored_swords;
@@ -289,6 +292,18 @@ bool economy::restore(const snapshot& state)
 
     if(state.money < 0 || state.money > money_cap || state.level < 0 || state.level > max_level ||
        state.tickets < 0 || state.tickets > 32767)      // 세이브에 int16으로 저장한다
+    {
+        return false;
+    }
+
+    bool target_ok = state.cat_target == 0;
+
+    for(int target : cat_targets)
+    {
+        target_ok |= state.cat_target == target;
+    }
+
+    if(! target_ok || state.fail_count < 0 || state.fail_count > 63)
     {
         return false;
     }
@@ -313,10 +328,42 @@ bool economy::restore(const snapshot& state)
     _money = state.money;
     _level = state.level;
     _best_level = state.best_level < state.level ? state.level : state.best_level;
+    _fail_count = state.fail_count;
+    _cat_target = state.cat_target;
     _tickets = state.tickets;
     _materials = state.materials;
     _stored_swords = state.stored_swords;
     return true;
+}
+
+void economy::ensure_cat_target(bn::seed_random& random)
+{
+    if(_cat_target == 0)
+    {
+        _cat_target = cat_targets[random.get_int(3)];
+        _fail_count = 0;
+    }
+}
+
+cat_gift economy::cat_visit(bn::seed_random& random)
+{
+    cat_gift gift;
+
+    if(! _stored_swords.full())
+    {
+        gift.is_sword = true;
+        gift.level = cat_gift_levels[random.get_int(4)];
+        _stored_swords.push_back(int8_t(gift.level));
+    }
+    else
+    {
+        gift.tickets = cat_gift_tickets;
+        _tickets += gift.tickets;
+    }
+
+    _cat_target = 0;
+    ensure_cat_target(random);
+    return gift;
 }
 
 #ifdef HS_DEBUG

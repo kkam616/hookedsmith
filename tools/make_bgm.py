@@ -243,11 +243,56 @@ def render_doom(bpm):
     return buffer
 
 
+# 고양이 이벤트 장면 음악 "총총": 바장조, 120BPM, 4마디. 톡톡 튀는 스타카토 선율 + 걷는 베이스 + 가벼운 틱 (이벤트 장면 동안만 켠다)
+CAT_MELODY = ('F5:0.5 A5:0.5 C6:0.5 A5:0.5  G5:0.5 A#5:0.5 D6:0.5 A#5:0.5  F5:0.5 A5:0.5 C6:0.5 F6:0.5  E6:1 C6:1 '
+              'A5:0.5 C6:0.5 F6:0.5 C6:0.5  A#5:0.5 D6:0.5 G6:0.5 D6:0.5  C6:0.5 A5:0.5 G5:0.5 E5:0.5  F5:2')
+CAT_BASS = ('F2:0.5 .:0.5 C3:0.5 .:0.5  G2:0.5 .:0.5 D3:0.5 .:0.5  F2:0.5 .:0.5 C3:0.5 .:0.5  C3:0.5 .:0.5 G2:0.5 .:0.5 '
+            'F2:0.5 .:0.5 C3:0.5 .:0.5  A#2:0.5 .:0.5 F3:0.5 .:0.5  C3:0.5 .:0.5 G2:0.5 .:0.5  F2:1 C3:1')
+
+
+def parse_track(track):
+    """'C5:1 E5:0.5 .:1' → [(시작 박, 길이 박, 음)]"""
+    events = []
+    beat = 0.0
+
+    for token in track.split():
+        note, length = token.split(':')
+        length = float(length)
+
+        if note != '.':
+            events.append((beat, length, note))
+
+        beat += length
+
+    return events
+
+
+def render_cat(bpm=120):
+    beat = 60.0 / bpm
+    buffer = [0.0] * int(16 * beat * RATE)
+
+    for start, length, note in parse_track(CAT_MELODY):
+        add(buffer, int(start * beat * RATE),
+            note_wave(freq(note), length * beat * 0.92, lambda f, t: square(f, t, 0.25), 0.28, 1.1, 0.004))
+
+    for start, length, note in parse_track(CAT_BASS):
+        add(buffer, int(start * beat * RATE), note_wave(freq(note), length * beat * 0.9, triangle, 0.45, 0.8))
+
+    for index in range(32):
+        add(buffer, int(index * 0.5 * beat * RATE), noise_hit(0.02, 0.07, 150, index + 7))
+
+    for index in range(8):
+        add(buffer, int(index * 2 * beat * RATE), kick(0.4))
+
+    return buffer
+
+
 def main():
     songs = [
         ('bgm_forge_normal', render_normal(124)),
         ('bgm_forge_fast', render_normal(166)),
         ('bgm_forge_doom', render_doom(84)),
+        ('bgm_event_cat', render_cat()),
     ]
 
     gap = [0.0] * int(0.8 * RATE)

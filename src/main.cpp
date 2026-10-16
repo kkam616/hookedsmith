@@ -86,6 +86,9 @@
 #include "bn_sprite_items_fx.h"
 #include "bn_sprite_items_splash_logo.h"
 #include "bn_sprite_items_ico_ready.h"
+#include "bn_sprite_items_cat.h"
+#include "bn_regular_bg_items_cat_room.h"
+#include "bn_regular_bg_items_cat_photo.h"
 #include "bn_sprite_items_ico_ticket.h"
 #include "bn_sprite_items_ico_scrap.h"
 #include "bn_sprite_items_ico_tau_bone.h"
@@ -894,6 +897,7 @@ enum class forge_exit
     BAG,        // ↓ (잡화)
     PAUSE,      // START (일시정지 메뉴)
     GAME_OVER,  // 파산
+    CAT,        // 강화 실패가 목표 횟수에 닿아 고양이 이벤트
 };
 
 constexpr int hammer_frames = 24;
@@ -2165,6 +2169,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         case phase::IDLE:
             set_forge_bgm_level(eco.level());
+
+            // 고양이 이벤트: 실패 결과 메시지를 다 보여 준 뒤 (파산 판정보다 먼저: 선물이 구제가 될 수 있다)
+            if(message_timer == 0 && ! help_mode && eco.cat_due())
+            {
+                fade_screen(false);
+                return forge_exit::CAT;
+            }
 
             // 파산: 메시지(판매·파괴 결과)를 다 보여 준 뒤 게임 오버
             if(message_timer == 0 && ! help_mode && eco.is_bankrupt())
@@ -3610,6 +3621,159 @@ void run_opening_cutscene()
 
 }
 
+// ─── 고양이 이벤트 ──────────────────────────────────────────────────────
+// 강화 배경 위에 창이 열리고, 창 안으로 도트 고양이가 걸어 들어와 앉아 꼬리를 흔든 뒤, 같은 창에 고양이 사진이 나오며 야옹.
+// 창 아래에 "물어왔다" → 받은 것(검 또는 방지권) 메시지. 그림 위치는 tools/make_cat_assets.py의 WINDOW_POS(77, 41)와 맞춘다.
+constexpr int cat_interior_left = 80 + 16 - 120;        // 방 안쪽 왼쪽 끝에 놓은 고양이 가운데 x
+constexpr int cat_sit_x = 0;
+constexpr int cat_y = 4;                                // 고양이 가운데 y (발이 방 바닥 위에 닿는다)
+constexpr int cat_walk_start = 24;                      // 고양이가 나타나 걷기 시작하는 프레임
+constexpr int cat_walk_frames = 44;
+constexpr int cat_photo_frame = cat_walk_start + cat_walk_frames + 66;
+constexpr int cat_message_one = cat_photo_frame + 16;
+constexpr int cat_message_two = cat_message_one + 50;
+constexpr int cat_end_frame = cat_message_two + 110;
+constexpr int cat_message_y = 44;                       // 창 아래 두 줄 메시지 (가운데 y와 줄 간격)
+constexpr int cat_message_step = 14;
+
+void run_cat_event(hs::economy& eco, bn::seed_random& random)
+{
+    const hs::cat_gift gift = eco.cat_visit(random);
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+
+    bn::regular_bg_ptr background = bn::regular_bg_items::forge_bg.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr room = bn::regular_bg_items::cat_room.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr photo = bn::regular_bg_items::cat_photo.create_bg(title_bg_x, title_bg_y);
+    room.set_priority(1);
+    photo.set_priority(1);
+    room.set_visible(false);
+    photo.set_visible(false);
+
+    bn::sprite_ptr anvil = bn::sprite_items::anvil.create_sprite(0, anvil_y);
+    anvil.set_bg_priority(2);               // 창(배경 우선순위 1) 뒤로
+
+    bn::sprite_ptr cat = bn::sprite_items::cat.create_sprite(cat_interior_left, cat_y, 0);
+    cat.set_bg_priority(0);                 // 창 앞으로
+    cat.set_visible(false);
+    cat.set_blending_enabled(true);
+
+    bn::vector<bn::sprite_ptr, 40> message_sprites;
+
+    auto show_message = [&](const bn::string_view& first, const bn::string_view& second)
+    {
+        message_sprites.clear();
+        center_generator.generate(0, cat_message_y, first, message_sprites);
+        center_generator.generate(0, cat_message_y + cat_message_step, second, message_sprites);
+
+        // 모루 그림(배경 우선순위 2)에 글자가 가려지지 않게 맨 앞으로
+        for(bn::sprite_ptr& sprite : message_sprites)
+        {
+            sprite.set_bg_priority(0);
+        }
+    };
+
+    auto set_flash = [&](bn::fixed level)
+    {
+        bn::bg_palettes::set_fade(bn::color(31, 31, 31), level);
+        bn::sprite_palettes::set_fade(bn::color(31, 31, 31), level);
+    };
+
+    bn::music_items::bgm_event_cat.play(bn::fixed(0.9));
+    fade_screen(true);
+
+    int flash = 0;
+    int frame = 0;
+
+    while(frame < cat_end_frame)
+    {
+        if(frame == 0)
+        {
+            room.set_visible(true);
+            bn::sound_items::sfx_event.play();      // 이벤트 발생 알림 (다른 이벤트도 같이 쓴다)
+            flash = 8;
+        }
+
+        if(frame >= cat_walk_start && frame < cat_photo_frame)
+        {
+            const int u = frame - cat_walk_start;
+            cat.set_visible(true);
+            bn::blending::set_transparency_alpha(u >= 12 ? bn::fixed(1) : bn::fixed(u) / 12);       // 왼쪽에서 스르륵 나타난다
+
+            if(u < cat_walk_frames)
+            {
+                cat.set_x(cat_interior_left + (cat_sit_x - cat_interior_left) * u / cat_walk_frames);
+                cat.set_item(bn::sprite_items::cat, (u / 5) % 4);
+            }
+            else
+            {
+                const int sit_time = u - cat_walk_frames;
+                cat.set_x(cat_sit_x);
+                cat.set_item(bn::sprite_items::cat, 4 + (sit_time < 10 ? 1 : (sit_time / 8) % 3));
+            }
+        }
+
+        // 소리는 3프레임 늦게 들리니 미리 튼다
+        if(frame == cat_photo_frame - sfx_latency_frames)
+        {
+            bn::sound_items::sfx_cat.play();
+        }
+
+        if(frame == cat_photo_frame)
+        {
+            room.set_visible(false);
+            cat.set_visible(false);
+            photo.set_visible(true);
+            flash = 8;
+        }
+
+        if(frame == cat_message_one)
+        {
+            show_message("귀여운 고양이가", "뭔가를 물어왔다!");
+        }
+        else if(frame == cat_message_two)
+        {
+            if(gift.is_sword)
+            {
+                show_message(sword_label(gift.level), "창고로 들어갔다");
+            }
+            else
+            {
+                bn::string<32> first("방지권 ");
+                first += bn::to_string<4>(gift.tickets);
+                first += "장을";
+                show_message(first, "받았다");
+            }
+        }
+
+        if(flash > 0)
+        {
+            set_flash(bn::fixed(flash) / 14);
+            --flash;
+
+            if(flash == 0)
+            {
+                set_flash(0);
+            }
+        }
+
+        // 받은 것을 확인한 뒤에는 A로 바로 끝낼 수 있다
+        if(frame > cat_message_two + 30 && bn::keypad::a_pressed())
+        {
+            break;
+        }
+
+        ++frame;
+        bn::core::update();
+    }
+
+    set_flash(0);
+    fade_screen(false, true);
+    bn::music::stop();
+    bn::blending::set_transparency_alpha(1);
+}
+
 int main()
 {
     bn::core::init();
@@ -3643,6 +3807,7 @@ int main()
         }
 
         bn::seed_random random(seed);
+        eco.ensure_cat_target(random);      // 새 게임과 예전 저장(목표가 없는)에 고양이 목표를 정한다
         bn::string_view message = "";
         bool quit = false;
 
@@ -3688,6 +3853,11 @@ int main()
                 cut_forge_bgm();
                 run_game_over();
                 quit = true;        // 타이틀로
+                break;
+
+            case forge_exit::CAT:
+                cut_forge_bgm();
+                run_cat_event(eco, random);
                 break;
 
             default:
