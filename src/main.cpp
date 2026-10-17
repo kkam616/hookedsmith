@@ -1216,6 +1216,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     bn::sprite_ptr sword = sword_items[sword_level]->create_sprite(0, sword_y);
     bn::sprite_palette_ptr sword_palette = sword.palette();
 
+    // 대기 모션: 검이 모루 위에서 위아래로 둥실거린다. 높은 단계일수록 크고 빠르며, +17 이상은 날에 가끔 반짝임이 인다.
+    int idle_tick = 0;
+    int idle_glint_dy = 0;                          // 반짝임이 검 가운데보다 얼마나 위인지
+    bn::optional<bn::sprite_ptr> idle_glint;        // 반짝임 (fx 팔레트를 잠깐만 쓰도록 반짝이는 동안만 만든다)
+
     phase current_phase = phase::IDLE;
     int phase_frame = 0;
     bool upgrade_succeeded = false;     // 판정은 바로 하고, 결과는 망치질이 끝난 뒤 보여준다
@@ -1345,6 +1350,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         // 검 그림은 단계가 바뀔 때 새로 만든다. 망치질 중에는 결과를 아직 보여주지 않는다.
         if(current_phase != phase::HAMMERING && ! reveal_hold && eco.level() != sword_level)
         {
+            idle_glint.reset();         // 팔레트 한도: 새 검 팔레트가 잠깐 하나 더 필요하다
             sword_level = eco.level();
             sword = sword_items[sword_level]->create_sprite(0, sword_y);
             sword.set_z_order(0);
@@ -1354,6 +1360,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
     auto set_help = [&](bool on)
     {
+        idle_glint.reset();
         help_mode = on;
         help_key = -1;
         help_line_1.set_text("");
@@ -2163,8 +2170,49 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
     int clock_frames = 0;
 
+    auto update_idle_sword = [&]()
+    {
+        // 단계별 폭(px)과 주기(프레임): +0~5 1px/2초, +6~16 2px/1.6초, +17~ 3px/1.2초
+        const int amplitude = sword_level <= 5 ? 1 : sword_level <= 16 ? 2 : 3;
+        const int period = sword_level <= 5 ? 120 : sword_level <= 16 ? 96 : 72;
+        const bn::fixed bob = amplitude * bn::degrees_lut_sin(bn::fixed(360 * (idle_tick % period)) / period);
+        sword.set_y(sword_y + bob);
+
+        if(sword_level >= 17)
+        {
+            const int phase_tick = idle_tick % 40;
+
+            if(phase_tick == 0)
+            {
+                // 날 위쪽 어딘가에서 금빛 별이 한 번 반짝인다 (위치는 틱으로 돌려 쓴다. 게임 난수는 건드리지 않는다)
+                const int seed = (idle_tick / 40) * 7919;
+                const int gx = (seed % 13) - 6;
+                idle_glint_dy = -26 + (seed / 13) % 24;
+                idle_glint = bn::sprite_items::fx.create_sprite(gx, sword_y + bob + idle_glint_dy, spark_gold);
+            }
+
+            if(idle_glint)
+            {
+                idle_glint->set_y(sword_y + bob + idle_glint_dy);
+                idle_glint->set_visible(phase_tick < 6 && phase_tick % 2 == 0);
+
+                if(phase_tick >= 6)
+                {
+                    idle_glint.reset();
+                }
+            }
+        }
+        else
+        {
+            idle_glint.reset();
+        }
+
+        ++idle_tick;
+    };
+
     while(true)
     {
+        // (아래 IDLE에서 update_idle_sword를 부른다)
         // 시간대 경계(16시·21시·06시)를 넘으면 성공률 보정과 표시를 바로 바꾼다 (1초에 한 번 확인)
         if(++clock_frames >= 60)
         {
@@ -2214,6 +2262,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 fade_screen(false);
                 return forge_exit::GAME_OVER;
+            }
+
+            if(! help_mode && ! reveal_hold)
+            {
+                update_idle_sword();
             }
 
             if(bn::keypad::select_pressed())
