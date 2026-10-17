@@ -36,7 +36,7 @@
 - 줄바꿈: `core.autocrlf=true`라 "LF will be replaced by CRLF" 경고는 정상이다. 작업 폴더 파일은 CRLF, 저장소는 LF.
 
 ### 디버그 빌드 키 (`hookedsmith_debug.gba`)
-HARD가 열려 있고, 강화 화면에서: **↑** = $100,000·방지권 5장·잡템 각 5개·보관 검, **B를 누른 채 ↑** = 파산 상태(게임 오버 확인), **+1 이상에서 R** = "무조건 실패 → 무조건 성공 → 끔" 순환, **+1 이상에서 L** = 단계를 +5→+16→+21→+22→+23→+24→+25→+27→+28 순서로 점프 (연출·재료 강화비 확인용).
+HARD가 열려 있고, **SELECT 도움말에서 ↑** = 시간대를 낮 → 노을 → 밤 → 실제 시계로 강제 순환 (도둑 이벤트·배경 확인용, 디버그에서는 도둑 확률 100%·쿨다운 2번), 강화 화면에서: **↑** = $100,000·방지권 5장·잡템 각 5개·보관 검, **B를 누른 채 ↑** = 파산 상태(게임 오버 확인), **+1 이상에서 R** = "무조건 실패 → 무조건 성공 → 끔" 순환, **+1 이상에서 L** = 단계를 +5→+16→+21→+22→+23→+24→+25→+27→+28 순서로 점프 (연출·재료 강화비 확인용).
 
 ### mGBA 조작·스크린샷
 - 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Space(이 PC 설정), 방향키.
@@ -53,10 +53,10 @@ HARD가 열려 있고, 강화 화면에서: **↑** = $100,000·방지권 5장·
 - 자세한 규칙·확률·메시지·연출 표는 `docs/GAME_MANUAL.md`.
 
 ### 코드 지도
-- `src/main.cpp` — 모든 화면 (`run_splash`, `run_title`, `run_start_select`, `run_opening_cutscene`, `run_forge`(강화 화면, 가장 큼), `run_recipe`(SELECT→START 레시피), `run_cat_event`(고양이 이벤트), `run_shop`, `run_storage`(창고·잡화), `run_crafting`(화구), `run_pause`, `run_game_over`, `main()`).
+- `src/main.cpp` — 모든 화면 (`run_splash`, `run_title`, `run_start_select`, `run_opening_cutscene`, `run_forge`(강화 화면, 가장 큼), `run_recipe`(SELECT→START 레시피), `run_cat_event`(고양이 이벤트), `run_thief_event`(밤 도둑 이벤트), `run_shop`, `run_storage`(창고·잡화), `run_crafting`(화구), `run_pause`, `run_game_over`, `main()`).
 - `include/economy_data.h` — 모든 수치 표(단계·상점·레시피·검 이름). `include/economy.h` + `src/economy.cpp` — 경제 로직(`upgrade`, `destroy`, `sell`, `buy`, `craft`, `is_bankrupt`, `success_pct`, `take_snapshot/restore`).
 - `include/save.h` + `src/save.cpp` — SRAM 세이브(슬롯 3개 + HARD 해금 머리글). `include/time_band.h` + `src/time_band.cpp` — 낮/노을/밤.
-- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표), `make_recipe_icon.py --write`(레시피 아이콘), `make_recipe_paper.py`(레시피 종이 배경), `make_forge_bg_time.py --write`(노을·밤 강화 배경: 낮 `forge_bg.bmp`에서 문 밖·빛줄기만 다시 칠함), `make_cat_assets.py`(고양이 그림), `make_sfx.py`(효과음 4종을 `audio/*.wav`로 만든다). 원본은 `assets/graphics/<종류>/`.
+- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표), `make_thief_assets.py`(도둑 그림), `make_recipe_icon.py --write`(레시피 아이콘), `make_recipe_paper.py`(레시피 종이 배경), `make_forge_bg_time.py --write`(노을·밤 강화 배경: 낮 `forge_bg.bmp`에서 문 밖·빛줄기만 다시 칠함), `make_cat_assets.py`(고양이 그림), `make_sfx.py`(효과음 4종을 `audio/*.wav`로 만든다). 원본은 `assets/graphics/<종류>/`.
 
 ### 효과음 (칩튠, `tools/make_sfx.py` → `audio/sfx_*.wav` → `bn::sound_items::sfx_*`)
 네모파·삼각파·잡음을 파이썬으로 합성한 8bit 모노 18157Hz wav. 수정하려면 스크립트의 각 함수를 고쳐 다시 실행(+ 이어 듣기용 `build/sfx_preview_all.wav`가 같이 생긴다).
@@ -67,6 +67,7 @@ HARD가 열려 있고, 강화 화면에서: **↑** = $100,000·방지권 5장·
 - `sfx_glow` (3.45초): +28→+29 시도와 +29 성공이 같이 쓰는 "빛이 차오르는" 소리. 둘 다 빛 연출이 시작되는 프레임에 시작하고, 결과가 나올 때 성공이면 `sfx_success_3`, 실패면 `sfx_fail`(빠직)이 이어진다.
 - `sfx_select` (0.16초 "띠딩"): 확정(A)할 때 — 타이틀, 시작 화면, 일시정지, 상점·화구·창고 A, 방지권 사용 질문(`play_select()`).
 - `sfx_fail` (0.15초, 가벼운 빠직): 검에 금이 가기 3프레임 전 (일반 실패는 12프레임째 금, +28 낚시는 빛이 꺼지고 금이 간 순간). 방지권으로 지켜도 금은 가므로 난다.
+- `sfx_thief`(도둑의 "히히히" 웃음)와 장면 음악 `bgm_event_thief`: 도둑 이벤트(밤에 강화·판매 시 4%, 창고의 +17 이상 검 하나 또는 소지금 20%를 훔쳐 감, `run_thief_event`, 자세한 것은 `docs/GAME_MANUAL.md` 17-3).
 - `sfx_event`(반짝, **이벤트 발생 공용**), `sfx_cat`(야옹 야옹): 고양이 이벤트(강화 실패 26/30/62회, `run_cat_event`, 선물 +17·18·20·21 검 중 하나를 창고로). 장면 음악 `bgm_event_cat`. 자세한 것은 `docs/GAME_MANUAL.md` 17-2. 그림은 `tools/make_cat_assets.py`.
 - `sfx_sell_0~2`: 판매 버튼을 누르는 즉시 단계별로 — 0 = +1~5(0.3초, 동전 몇 닢), 1 = +6~16(0.8초), 2 = +17~28(1.5초, 금화 소나기+팡파르). 판매 화면 연출(`phase::SELL`)은 검이 번쩍이며 사라지고 동전(`fx` 그림 8~11, 최대 32개)이 튀며 소지금이 올라간다. 시안 확인용 `tools/preview_sell_fx.py`(GIF·wav, `build/sell_fx_preview/`).
 - 아직 소리가 없는 곳: 취소(B), 상점 구매, 복구, 게임 오버, 컷씬.

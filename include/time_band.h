@@ -37,6 +37,11 @@ constexpr int time_penalty_pct(time_band band)
 
 [[nodiscard]] time_band current_time_band();
 
+#ifdef HS_DEBUG
+// 디버그 빌드: 강화 화면 SELECT 도움말에서 ↑ 로 시간대를 강제로 돌린다 (낮 → 노을 → 밤 → 실제 시계). 이름은 화면에 보여 주려고 돌려준다.
+const char* debug_cycle_time_band();
+#endif
+
 }
 
 #endif

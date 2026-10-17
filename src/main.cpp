@@ -89,6 +89,11 @@
 #include "bn_sprite_items_splash_logo.h"
 #include "bn_sprite_items_ico_ready.h"
 #include "bn_sprite_items_icon_recipe.h"
+#include "bn_sprite_items_thief.h"
+#include "bn_regular_bg_items_thief_room.h"
+#include "bn_regular_bg_items_thief_room_coins.h"
+#include "bn_regular_bg_items_thief_room_empty.h"
+#include "bn_regular_bg_items_thief_photo.h"
 #include "bn_regular_bg_items_recipe_paper.h"
 #include "bn_sprite_items_cat.h"
 #include "bn_regular_bg_items_cat_room.h"
@@ -920,6 +925,7 @@ enum class forge_exit
     GAME_OVER,  // 파산
     CAT,        // 강화 실패가 목표 횟수에 닿아 고양이 이벤트
     RECIPE,     // SELECT 도움말에서 START: 레시피 (낡은 종이에 적힌 단계별 강화표)
+    THIEF,      // 밤에 도둑이 들어 창고의 검(없으면 돈)을 훔쳐 간다
 };
 
 constexpr int hammer_frames = 24;
@@ -1227,6 +1233,21 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     int idle_tick = 0;
     int idle_glint_dy = 0;                          // 반짝임이 검 가운데보다 얼마나 위인지
     bn::optional<bn::sprite_ptr> idle_glint;        // 반짝임 (fx 팔레트를 잠깐만 쓰도록 반짝이는 동안만 만든다)
+
+    // 도둑 이벤트: 밤에 강화·판매를 마칠 때마다 한 번 판정하고, 걸리면 결과 메시지가 끝난 뒤(IDLE) 도둑이 든다
+    bool thief_pending = false;
+    auto roll_thief = [&]()
+    {
+        if(hs::current_time_band() == hs::time_band::NIGHT)
+        {
+            eco.note_night_action();
+
+            if(eco.thief_ready() && random.get_int(100) < hs::thief_chance_pct)
+            {
+                thief_pending = true;
+            }
+        }
+    };
 
     phase current_phase = phase::IDLE;
     int phase_frame = 0;
@@ -2297,6 +2318,18 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 return forge_exit::GAME_OVER;
             }
 
+            // 도둑 이벤트: 결과 메시지가 끝난 뒤 (게임 오버 판정 다음)
+            if(thief_pending && message_timer == 0 && ! help_mode)
+            {
+                thief_pending = false;
+
+                if(eco.thief_ready())
+                {
+                    fade_screen(false);
+                    return forge_exit::THIEF;
+                }
+            }
+
             if(! help_mode && ! reveal_hold)
             {
                 update_idle_sword();
@@ -2314,6 +2347,16 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     fade_screen(false);
                     return forge_exit::RECIPE;
                 }
+
+#ifdef HS_DEBUG
+                if(bn::keypad::up_pressed())
+                {
+                    help_line_1.set_text("DEBUG 시간대");
+                    help_line_2.set_text(hs::debug_cycle_time_band());
+                    help_line_3.set_text("(↑ 로 돌린다)");
+                    help_key = -1;
+                }
+#endif
 
                 int key = bn::keypad::a_held() ? 0 : bn::keypad::b_held() ? 1 : bn::keypad::l_held() ? 2 :
                           bn::keypad::r_held() ? 3 : bn::keypad::left_held() ? 4 : bn::keypad::down_held() ? 5 : -1;
@@ -2356,6 +2399,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     }
 #endif
                     upgrade_succeeded = eco.upgrade(random);
+                    roll_thief();               // 밤이면 도둑 판정 (강화 한 번)
                     current_phase = phase::HAMMERING;
                     phase_frame = 0;
                     bn::sound_items::sfx_hammer.play();
@@ -2378,6 +2422,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     sold_line += format_money_short(amount);
                     message_text(sold_line);
                     start_sell_effect(sold_level, money_before, amount);
+                    roll_thief();               // 밤이면 도둑 판정 (판매 한 번)
                 }
             }
             else if(bn::keypad::l_pressed() || bn::keypad::r_pressed())
@@ -4104,6 +4149,208 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
     bn::blending::set_transparency_alpha(1);
 }
 
+// ─── 도둑 이벤트 (밤) ───────────────────────────────────────────────────────
+// 밤 장면 창이 열리고 도트 도둑이 살금살금 들어와 받침대의 검(또는 금화)을 집으면 → A → 같은 창에 도둑 정면 사진이
+// 번쩍이며 "히히히" → 도난 메시지. 흐름은 고양이 이벤트와 같다 (그림 위치는 tools/make_thief_assets.py의 창 (77, 41)).
+constexpr int thief_left_x = 3 - 27;                    // 방 안쪽 왼쪽 끝에서 시작: 창 안 좌표 3 → 가운데 x = 3 + 16 + 77 - 120
+constexpr int thief_stop_x = 34 - 27;                   // 받침대 앞에서 멈춘다
+constexpr int thief_y = 2;                              // 가운데 y (발이 바닥에 닿는다)
+constexpr int thief_walk_start = 24;
+constexpr int thief_walk_frames = 40;
+constexpr int thief_peek_frames = 26;
+constexpr int thief_ready_after_grab = 24;
+constexpr int thief_message_delay = 14;
+
+void run_thief_event(hs::economy& eco, bn::seed_random& random)
+{
+    const hs::thief_loss loss = eco.steal(random);
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+
+    bn::regular_bg_ptr background = forge_bg_item(hs::current_time_band()).create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr room_loot = (loss.is_sword ? bn::regular_bg_items::thief_room : bn::regular_bg_items::thief_room_coins)
+                                       .create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr room_empty = bn::regular_bg_items::thief_room_empty.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr photo = bn::regular_bg_items::thief_photo.create_bg(title_bg_x, title_bg_y);
+    room_loot.set_priority(1);
+    room_empty.set_priority(1);
+    photo.set_priority(1);
+    room_loot.set_visible(false);
+    room_empty.set_visible(false);
+    photo.set_visible(false);
+
+    bn::sprite_ptr anvil = bn::sprite_items::anvil.create_sprite(0, anvil_y);
+    anvil.set_bg_priority(2);
+
+    bn::sprite_ptr thief = bn::sprite_items::thief.create_sprite(thief_left_x, thief_y, 0);
+    thief.set_bg_priority(0);
+    thief.set_visible(false);
+    thief.set_blending_enabled(true);
+
+    bn::vector<bn::sprite_ptr, 40> message_sprites;
+
+    auto show_message = [&](const bn::string_view& first, const bn::string_view& second)
+    {
+        message_sprites.clear();
+        center_generator.generate(0, cat_message_y, first, message_sprites);
+        center_generator.generate(0, cat_message_y + cat_message_step, second, message_sprites);
+
+        for(bn::sprite_ptr& sprite : message_sprites)
+        {
+            sprite.set_bg_priority(0);
+        }
+    };
+
+    auto set_flash = [&](bn::fixed level)
+    {
+        bn::bg_palettes::set_fade(bn::color(31, 31, 31), level);
+        bn::sprite_palettes::set_fade(bn::color(31, 31, 31), level);
+    };
+
+    bn::music_items::bgm_event_thief.play(bn::fixed(0.9));
+    fade_screen(true);
+
+    bn::sprite_text_generator arrow_generator(hs::font);
+    arrow_generator.set_left_alignment();
+    bn::vector<bn::sprite_ptr, 1> arrow;
+    arrow_generator.generate(indicator_x, second_line_y, "▼", arrow);
+    arrow[0].set_bg_priority(0);
+    arrow[0].set_visible(false);
+
+    const int grab_frame = thief_walk_start + thief_walk_frames + thief_peek_frames;
+    int page = 0;
+    int page_frame = 0;
+    int photo_countdown = -1;
+    int flash = 0;
+    int frame = 0;
+
+    while(true)
+    {
+        if(frame == 0)
+        {
+            room_loot.set_visible(true);
+            bn::sound_items::sfx_event.play();      // 이벤트 발생 알림 (고양이 이벤트와 같은 공용 소리)
+            flash = 8;
+        }
+
+        bool ready = false;
+
+        if(page == 0 && frame >= thief_walk_start)
+        {
+            const int u = frame - thief_walk_start;
+            thief.set_visible(true);
+            bn::blending::set_transparency_alpha(u >= 12 ? bn::fixed(1) : bn::fixed(u) / 12);
+
+            if(u < thief_walk_frames)
+            {
+                thief.set_x(thief_left_x + (thief_stop_x - thief_left_x) * u / thief_walk_frames);
+                thief.set_item(bn::sprite_items::thief, (u / 6) % 4);
+            }
+            else if(frame < grab_frame)
+            {
+                // 두리번거린다: 두 걸음 자세를 번갈아
+                thief.set_x(thief_stop_x + ((frame / 8) % 2));
+                thief.set_item(bn::sprite_items::thief, (frame / 8) % 2 ? 3 : 1);
+            }
+            else
+            {
+                // 받침대의 것을 집는다: 방이 빈 방으로 바뀌고 도둑은 손을 뻗은 모습
+                if(frame == grab_frame)
+                {
+                    room_loot.set_visible(false);
+                    room_empty.set_visible(true);
+                }
+
+                thief.set_x(thief_stop_x + 6);
+                thief.set_item(bn::sprite_items::thief, 4);
+                ready = frame >= grab_frame + thief_ready_after_grab && photo_countdown < 0;
+            }
+        }
+        else if(page == 1)
+        {
+            if(photo_countdown > 0)
+            {
+                --photo_countdown;
+            }
+            else if(photo_countdown == 0)
+            {
+                photo_countdown = -1;
+                room_empty.set_visible(false);
+                thief.set_visible(false);
+                photo.set_visible(true);
+                flash = 8;
+                page_frame = 0;
+            }
+
+            if(photo_countdown < 0 && photo.visible())
+            {
+                if(page_frame == thief_message_delay)
+                {
+                    show_message("수상한 그림자가", loss.is_sword ? "창고를 뒤졌다!" : "돈주머니를 뒤졌다!");
+                }
+
+                ready = page_frame >= thief_message_delay + 12;
+            }
+        }
+        else
+        {
+            ready = page_frame >= 12;
+        }
+
+        arrow[0].set_visible(ready && (frame / indicator_blink_frames) % 2 == 0);
+
+        if(ready && bn::keypad::a_pressed())
+        {
+            if(page == 0)
+            {
+                page = 1;
+                page_frame = 0;
+                photo_countdown = sfx_latency_frames;
+                bn::sound_items::sfx_thief.play();      // 히히히
+            }
+            else if(page == 1)
+            {
+                page = 2;
+                page_frame = 0;
+
+                if(loss.is_sword)
+                {
+                    show_message(sword_label(loss.level), "도둑맞았다...");
+                }
+                else
+                {
+                    show_message(format_money(loss.money), "도둑맞았다...");
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if(flash > 0)
+        {
+            set_flash(bn::fixed(flash) / 14);
+            --flash;
+
+            if(flash == 0)
+            {
+                set_flash(0);
+            }
+        }
+
+        ++frame;
+        ++page_frame;
+        bn::core::update();
+    }
+
+    set_flash(0);
+    fade_screen(false, true);
+    bn::music::stop();
+    bn::blending::set_transparency_alpha(1);
+}
+
 int main()
 {
     bn::core::init();
@@ -4192,6 +4439,11 @@ int main()
 
             case forge_exit::RECIPE:
                 run_recipe(eco);
+                break;
+
+            case forge_exit::THIEF:
+                cut_forge_bgm();
+                run_thief_event(eco, random);
                 break;
 
             default:

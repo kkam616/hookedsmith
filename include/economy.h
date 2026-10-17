@@ -44,6 +44,14 @@ struct cat_gift
     int tickets = 0;
 };
 
+// 도둑이 훔쳐 간 것: 검(level) 또는 돈(money)
+struct thief_loss
+{
+    bool is_sword = false;
+    int level = 0;
+    int32_t money = 0;
+};
+
 // 세이브에 들어갈 상태 전부 (난이도, 소지금, 단계, 방지권, 잡템, 보관 검)
 class economy
 {
@@ -90,6 +98,12 @@ public:
     [[nodiscard]] bool cat_due() const { return _cat_target > 0 && _fail_count >= _cat_target; }
     void ensure_cat_target(bn::seed_random& random);        // 목표가 아직 없으면(새 게임·예전 저장) 정한다
     cat_gift cat_visit(bn::seed_random& random);            // 선물을 주고 횟수를 0으로, 목표를 다시 정한다
+
+    // 도둑 이벤트 (밤): 훔칠 것이 있고 쿨다운이 끝나야 올 수 있다. 쿨다운은 저장하지 않는다.
+    [[nodiscard]] bool thief_has_loot() const;
+    [[nodiscard]] bool thief_ready() const { return _thief_cooldown <= 0 && thief_has_loot(); }
+    void note_night_action() { if(_thief_cooldown > 0) { --_thief_cooldown; } }
+    thief_loss steal(bn::seed_random& random);
 
     [[nodiscard]] bool can_sell() const { return row().sell_usd > 0; }
     int32_t sell();
@@ -151,6 +165,7 @@ private:
     int _fail_count = 0;
     int _cat_target = 0;
     int _tickets = 0;
+    int _thief_cooldown = 0;
     bn::array<int16_t, material_count> _materials = {};
     bn::vector<int8_t, max_stored_swords> _stored_swords;
     int _time_penalty = 0;

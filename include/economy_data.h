@@ -211,7 +211,19 @@ constexpr int cat_targets[3] = { 2, 3, 4 };
 constexpr int cat_targets[3] = { 26, 30, 62 };
 #endif
 constexpr int cat_gift_levels[4] = { 17, 18, 20, 21 };      // 선물로 받는 검 단계 (이 중 무작위)
-constexpr int cat_gift_tickets = 3;                         // 창고가 가득 찼을 때 대신 받는 방지권
+constexpr int cat_gift_tickets = 3;
+
+// 도둑 이벤트 (밤에만): 밤에 강화·판매를 마칠 때마다 낮은 확률로 판정한다. 훔칠 것이 없거나 쿨다운 중이면 안 온다.
+// 창고의 +17 이상 검 하나를 무작위로 훔쳐 가고, 그런 검이 없으면 소지금의 20%를 훔친다. 디버그 빌드는 바로 확인하도록 확률 100%·쿨다운 짧게.
+#ifdef HS_DEBUG
+constexpr int thief_chance_pct = 100;
+constexpr int thief_cooldown_actions = 2;
+#else
+constexpr int thief_chance_pct = 4;
+constexpr int thief_cooldown_actions = 20;           // 다녀간 뒤 밤에 강화·판매를 이만큼 해야 다시 올 수 있다
+#endif
+constexpr int thief_min_sword_level = 17;
+constexpr int thief_money_pct = 20;                         // 창고가 가득 찼을 때 대신 받는 방지권
 
 // 조합소 (잡템 → 방지권 또는 보관 검)
 enum class craft_output : uint8_t

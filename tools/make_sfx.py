@@ -10,6 +10,7 @@
   sfx_sell_0~2.wav    판매 (0: +1~5 동전 몇 닢 / 1: +6~16 쏟아지는 동전 / 2: +17~28 금화 소나기 + 팡파르)
   sfx_event.wav       이벤트 발생 알림 (반짝, 모든 이벤트 공용)
   sfx_cat.wav         고양이 야옹 야옹 (고양이 이벤트)
+  sfx_thief.wav       도둑의 음흉한 웃음 "히히히" (도둑 이벤트)
   sfx_fail.wav        강화 실패·파괴 (가벼운 빠직: 짧은 잡음 두 번 + 작은 하강 삑, 약 0.15초)
 수동 실행: python -B tools/make_sfx.py
 (음악은 assets/audio/*.wav → make_music.py → audio/*.xm. 효과음은 이 스크립트가 audio/에 wav로 바로 만든다.)
@@ -332,6 +333,35 @@ def event_sparkle():    # 이벤트 발생 (고양이 말고 다른 이벤트에
     return mix(*parts)
 
 
+def hi(f_start, f_end, seconds, volume=0.5, breath=0.25, vibrato=0.04):
+    """"히" 한 번: 짧은 숨소리(ㅎ) + 높은 모음 소리(이). 음높이는 위에서 아래로 떨어진다"""
+    noise = Noise(int(f_start) % 97 + 3)
+    phase = [0.0]
+    breath_len = 0.035
+
+    def generator(t, p):
+        f = (f_start + (f_end - f_start) * p) * (1 + vibrato * math.sin(t * 52))
+        phase[0] = (phase[0] + f / RATE) % 1.0
+        duty = 0.2 + 0.15 * math.sin(math.pi * p)
+        voiced = (1.0 if phase[0] < duty else -1.0) * 0.8 + (1.0 if (phase[0] * 2) % 1.0 < 0.25 else -1.0) * 0.25
+        puff = noise.next(1) * breath * max(0.0, 1 - t / breath_len)
+        return (voiced * envelope(p, seconds, 0.06, 1.1) * min(1.0, t / 0.01) + puff) * volume
+
+    return render(seconds, generator)
+
+
+def thief_laugh():      # 도둑 웃음 "히힛.. 히힛.. 히히히~": 음흉하게 낮게 (1.3초)
+    total = 1.3
+    parts = [
+        place(hi(560, 470, 0.14), 0.0, total),
+        place(hi(540, 450, 0.14), 0.27, total),
+        place(hi(620, 480, 0.12), 0.58, total),
+        place(hi(600, 470, 0.12), 0.74, total),
+        place(hi(580, 360, 0.42, 0.5, 0.12, 0.06), 0.9, total),
+    ]
+    return mix(*parts)
+
+
 def main():
     sounds = [
         ('sfx_menu_move', menu_move()),
@@ -348,6 +378,7 @@ def main():
         ('sfx_sell_2', sell_3()),
         ('sfx_event', event_sparkle()),
         ('sfx_cat', cat_meow()),
+        ('sfx_thief', thief_laugh()),
     ]
 
     gap = [0.0] * samples(0.5)

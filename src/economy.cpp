@@ -336,6 +336,50 @@ bool economy::restore(const snapshot& state)
     return true;
 }
 
+bool economy::thief_has_loot() const
+{
+    for(int8_t level : _stored_swords)
+    {
+        if(level >= thief_min_sword_level)
+        {
+            return true;
+        }
+    }
+
+    return int64_t(_money) * thief_money_pct / 100 >= 1;
+}
+
+thief_loss economy::steal(bn::seed_random& random)
+{
+    thief_loss loss;
+    int candidates[max_stored_swords];
+    int count = 0;
+
+    for(int index = 0; index < _stored_swords.size(); ++index)
+    {
+        if(_stored_swords[index] >= thief_min_sword_level)
+        {
+            candidates[count++] = index;
+        }
+    }
+
+    if(count > 0)
+    {
+        const int chosen = candidates[random.get_int(count)];
+        loss.is_sword = true;
+        loss.level = _stored_swords[chosen];
+        _stored_swords.erase(_stored_swords.begin() + chosen);
+    }
+    else
+    {
+        loss.money = int32_t(int64_t(_money) * thief_money_pct / 100);
+        _money -= loss.money;
+    }
+
+    _thief_cooldown = thief_cooldown_actions;
+    return loss;
+}
+
 void economy::ensure_cat_target(bn::seed_random& random)
 {
     if(_cat_target == 0)

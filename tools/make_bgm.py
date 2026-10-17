@@ -287,12 +287,36 @@ def render_cat(bpm=120):
     return buffer
 
 
+# 도둑 이벤트 장면 음악 "살금살금": 가단조, 96BPM, 4마디. 느린 스타카토 반음 선율 + 박자 사이를 찍는 낮은 베이스 + 발소리 같은 틱
+THIEF_MELODY = ('A4:0.5 .:0.5 C5:0.5 .:0.5 B4:0.5 .:0.5 A#4:0.5 .:0.5  A4:0.5 .:0.5 E5:0.5 .:0.5 D#5:0.5 .:0.5 D5:1 '
+                'F5:0.5 .:0.5 E5:0.5 .:0.5 D5:0.5 .:0.5 C#5:0.5 .:0.5  C5:0.5 .:0.5 B4:0.5 .:0.5 A4:2')
+THIEF_BASS = 'A2:0.5 .:1.5 E3:0.5 .:1.5  A2:0.5 .:1.5 E3:0.5 .:1.5  D3:0.5 .:1.5 A2:0.5 .:1.5  E3:0.5 .:1.5 A2:2'
+
+
+def render_thief(bpm=96):
+    beat = 60.0 / bpm
+    buffer = [0.0] * int(16 * beat * RATE)
+
+    for start, length, note in parse_track(THIEF_MELODY):
+        add(buffer, int(start * beat * RATE),
+            note_wave(freq(note), length * beat * 0.92, lambda f, t: square(f, t, 0.125), 0.26, 1.1, 0.004))
+
+    for start, length, note in parse_track(THIEF_BASS):
+        add(buffer, int(start * beat * RATE), note_wave(freq(note), length * beat * 0.9, triangle, 0.45, 0.8))
+
+    for index in range(16):
+        add(buffer, int(index * beat * RATE), noise_hit(0.02, 0.07, 150, index + 11))
+
+    return buffer
+
+
 def main():
     songs = [
         ('bgm_forge_normal', render_normal(124)),
         ('bgm_forge_fast', render_normal(166)),
         ('bgm_forge_doom', render_doom(84)),
         ('bgm_event_cat', render_cat()),
+        ('bgm_event_thief', render_thief()),
     ]
 
     gap = [0.0] * int(0.8 * RATE)
