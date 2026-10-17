@@ -539,8 +539,8 @@ void run_splash()
     }
 
     bn::vector<bn::sprite_ptr, 48> credit_sprites;
-    gen.generate(0, 36, "Fan-made. Original concept © NBS.", credit_sprites);
-    gen.generate(0, 50, "All rights reserved.", credit_sprites);
+    gen.generate(0, 36, "Unofficial fan game.", credit_sprites);
+    gen.generate(0, 50, "Original concept © NBS.", credit_sprites);
 
     bn::sprite_palette_ptr credit_palette = bn::sprite_palette_ptr::create_new(hs::font.item().palette_item());
 
@@ -572,7 +572,8 @@ void run_splash()
         }
     }
 
-    for(int f = 0; f < SPLASH_HOLD; ++f)
+    // 세 번째로 켜진 뒤 유지하는 시간 (31프레임 ≈ 0.52초)
+    for(int f = 0; f < credit_fade + 1; ++f)
     {
         bn::core::update();
     }
