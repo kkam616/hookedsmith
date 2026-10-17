@@ -11,7 +11,7 @@ echo === normal build ===
 "%MAKEEXE%" -j8 || exit /b 1
 
 echo === debug build ===
-"%MAKEEXE%" -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG || exit /b 1
+"%MAKEEXE%" -j8 TARGET=hookedsmith_debug BUILD=build_debug "USERFLAGS=-DHS_DEBUG -DBN_CFG_SPRITE_TILES_MAX_ITEMS=192" || exit /b 1
 
 echo.
 echo done: hookedsmith.gba (normal), hookedsmith_debug.gba (debug)

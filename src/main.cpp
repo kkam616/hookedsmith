@@ -3812,9 +3812,10 @@ constexpr int recipe_visible_rows = 8;
 constexpr int recipe_row_y = -34;           // 첫 줄 가운데 y (화면 46) — 줄 간격 13
 constexpr int recipe_row_step = 13;
 constexpr int recipe_col_level = -108;      // 단계 (왼쪽 맞춤): 밑줄 왼쪽 끝
-constexpr int recipe_col_need = -52;        // 필요한 것 (왼쪽 맞춤)
-constexpr int recipe_col_success = 62;      // 성공 (오른쪽 맞춤)
-constexpr int recipe_col_sell = 108;        // 판매가 (오른쪽 맞춤): 밑줄 오른쪽 끝
+constexpr int recipe_col_need = -62;        // 필요한 것 (왼쪽 맞춤)
+constexpr int recipe_col_ticket = 38;       // 방지권 개수 (오른쪽 맞춤, 머리글은 방지권 아이콘)
+constexpr int recipe_col_success = 64;      // 성공 (오른쪽 맞춤)
+constexpr int recipe_col_sell = 110;        // 판매가 (오른쪽 맞춤): 밑줄 오른쪽 끝
 
 void run_recipe(const hs::economy& eco)
 {
@@ -3826,9 +3827,6 @@ void run_recipe(const hs::economy& eco)
     right_generator.set_right_alignment();
     bn::sprite_text_generator small_left_generator(hs::font_small);
     small_left_generator.set_left_alignment();
-    bn::sprite_text_generator small_right_generator(hs::font_small);
-    small_right_generator.set_right_alignment();
-
     // 잉크 색: 짙은 갈색(보통), 붉은 잉크(재료), 번진 옅은 갈색(머리글·안내). 두 번째 색은 글자 그림자(번짐)
     bn::sprite_palette_ptr ink_palette = create_two_tone_font_palette(bn::color(7, 4, 2), bn::color(19, 14, 9));
     bn::sprite_palette_ptr red_palette = create_two_tone_font_palette(bn::color(19, 4, 3), bn::color(23, 15, 9));
@@ -3848,14 +3846,9 @@ void run_recipe(const hs::economy& eco)
         }
     };
 
-    add_text(left_generator, -108, -67, "레시피", ink_palette, fixed_sprites);
+    // 제목 "레시피", 머리글(단계/필요한 것/성공/판매가), 아래 안내는 스프라이트 타일을 아끼려고 배경 그림에 미리 그려 두었다 (tools/make_recipe_paper.py)
     add_text(left_generator, -62, -67, eco.diff() == hs::difficulty::HARD ? "(HARD)" : "(STORY)", red_palette, fixed_sprites);
-    // 밑줄(화면 x 12~228) 양끝에 단계(왼쪽)와 판매가(오른쪽)를 맞추고, 그 사이에 필요한 것(왼쪽 맞춤)과 성공(오른쪽 맞춤) 열을 둔다
-    add_text(small_left_generator, recipe_col_level, -51, "단계", faint_palette, fixed_sprites);
-    add_text(small_left_generator, recipe_col_need, -51, "필요한 것", faint_palette, fixed_sprites);
-    add_text(small_right_generator, recipe_col_success, -51, "성공", faint_palette, fixed_sprites);
-    add_text(small_right_generator, recipe_col_sell, -51, "판매가", faint_palette, fixed_sprites);
-    add_text(small_left_generator, -108, 69, "↑↓ 넘기기     B 닫기", faint_palette, fixed_sprites);
+    bn::sprite_ptr ticket_header = bn::sprite_items::ico_ticket.create_sprite(recipe_col_ticket - 8, -49);        // 방지권 열 머리글
 
     const hs::level_row* table = hs::level_table(eco.diff());
     const int total = hs::max_level;                    // +0→1 ~ +28→29
@@ -3912,6 +3905,11 @@ void run_recipe(const hs::economy& eco)
 
             add_text(left_generator, recipe_col_level, y, level_line, tint, row_sprites);
             add_text(left_generator, recipe_col_need, y, need_line, tint, row_sprites);
+            if(row.protect_cost > 0)       // 방지권을 못 쓰는 단계는 칸을 비워 둔다 (글자 조각을 아낀다)
+            {
+                add_text(right_generator, recipe_col_ticket, y, bn::to_string<8>(row.protect_cost), tint, row_sprites);
+            }
+
             add_text(right_generator, recipe_col_success, y, success_line, ink_palette, row_sprites);
             add_text(right_generator, recipe_col_sell, y, row.sell_usd > 0 ? format_money_short(row.sell_usd) : bn::string<24>("-"),
                      ink_palette, row_sprites);
@@ -3919,12 +3917,12 @@ void run_recipe(const hs::economy& eco)
 
         if(offset > 0)
         {
-            add_text(small_left_generator, 112, -49, "▲", ink_palette, arrow_sprites);
+            add_text(small_left_generator, 114, -49, "▲", ink_palette, arrow_sprites);
         }
 
         if(offset + recipe_visible_rows < total)
         {
-            add_text(small_left_generator, 112, 58, "▼", ink_palette, arrow_sprites);
+            add_text(small_left_generator, 114, 58, "▼", ink_palette, arrow_sprites);
         }
 
         shown_offset = offset;
