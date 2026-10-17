@@ -3025,8 +3025,8 @@ void run_crafting(hs::economy& eco)
     // 배경: 흑백 화로 그림 (tools/make_menu_bgs.py)
     bn::regular_bg_ptr background = bn::regular_bg_items::menu_bg_furnace.create_bg(title_bg_x, title_bg_y);
 
-    constexpr int output_icon_x = shop_price_x + 8;   // 결과 아이콘 가운데 (상점 금액 시작 위치에 맞춤)
-    constexpr int count_x = output_icon_x - 16;              // 필요 수량(오른쪽 맞춤)
+    constexpr int output_icon_x = shop_price_x + 20;  // 결과 아이콘 가운데 (보유 수량이 세 자리(최대 999)여도 이름과 겹치지 않게 오른쪽으로 옮겼다)
+    constexpr int count_x = output_icon_x - 12;              // 보유/필요 수량(오른쪽 맞춤): 가장 긴 이름(네 글자)과 세 자리 보유 수량이 겹치지 않는 자리
     constexpr int output_text_x = output_icon_x + 11;   // 결과 글자
 
     text_line title_text(left_generator, -114, -72);
@@ -3062,7 +3062,8 @@ void run_crafting(hs::economy& eco)
             const hs::recipe& recipe = hs::recipes[index];
             int y = craft_top_y + index * craft_step_y;
 
-            bn::string<16> count_line = bn::to_string<16>(eco.material_quantity(recipe.input));
+            const int owned = eco.material_quantity(recipe.input);
+            bn::string<16> count_line = bn::to_string<16>(owned);
             count_line += "/";
             count_line += bn::to_string<4>(eco.required_quantity(recipe));
 
@@ -3752,6 +3753,10 @@ void run_opening_cutscene()
 constexpr int recipe_visible_rows = 8;
 constexpr int recipe_row_y = -34;           // 첫 줄 가운데 y (화면 46) — 줄 간격 13
 constexpr int recipe_row_step = 13;
+constexpr int recipe_col_level = -108;      // 단계 (왼쪽 맞춤): 밑줄 왼쪽 끝
+constexpr int recipe_col_need = -52;        // 필요한 것 (왼쪽 맞춤)
+constexpr int recipe_col_success = 62;      // 성공 (오른쪽 맞춤)
+constexpr int recipe_col_sell = 108;        // 판매가 (오른쪽 맞춤): 밑줄 오른쪽 끝
 
 void run_recipe(const hs::economy& eco)
 {
@@ -3787,10 +3792,11 @@ void run_recipe(const hs::economy& eco)
 
     add_text(left_generator, -108, -67, "레시피", ink_palette, fixed_sprites);
     add_text(left_generator, -62, -67, eco.diff() == hs::difficulty::HARD ? "(HARD)" : "(STORY)", red_palette, fixed_sprites);
-    add_text(small_left_generator, -94, -51, "단계", faint_palette, fixed_sprites);
-    add_text(small_left_generator, -44, -51, "필요한 것", faint_palette, fixed_sprites);
-    add_text(small_right_generator, 70, -51, "성공", faint_palette, fixed_sprites);
-    add_text(small_right_generator, 110, -51, "판매가", faint_palette, fixed_sprites);
+    // 밑줄(화면 x 12~228) 양끝에 단계(왼쪽)와 판매가(오른쪽)를 맞추고, 그 사이에 필요한 것(왼쪽 맞춤)과 성공(오른쪽 맞춤) 열을 둔다
+    add_text(small_left_generator, recipe_col_level, -51, "단계", faint_palette, fixed_sprites);
+    add_text(small_left_generator, recipe_col_need, -51, "필요한 것", faint_palette, fixed_sprites);
+    add_text(small_right_generator, recipe_col_success, -51, "성공", faint_palette, fixed_sprites);
+    add_text(small_right_generator, recipe_col_sell, -51, "판매가", faint_palette, fixed_sprites);
     add_text(small_left_generator, -108, 69, "↑↓ 넘기기     B 닫기", faint_palette, fixed_sprites);
 
     const hs::level_row* table = hs::level_table(eco.diff());
@@ -3846,10 +3852,10 @@ void run_recipe(const hs::economy& eco)
             bn::string<8> success_line = bn::to_string<4>(row.success_pct);
             success_line += "%";
 
-            add_text(left_generator, -94, y, level_line, tint, row_sprites);
-            add_text(left_generator, -44, y, need_line, tint, row_sprites);
-            add_text(right_generator, 70, y, success_line, ink_palette, row_sprites);
-            add_text(right_generator, 110, y, row.sell_usd > 0 ? format_money_short(row.sell_usd) : bn::string<24>("-"),
+            add_text(left_generator, recipe_col_level, y, level_line, tint, row_sprites);
+            add_text(left_generator, recipe_col_need, y, need_line, tint, row_sprites);
+            add_text(right_generator, recipe_col_success, y, success_line, ink_palette, row_sprites);
+            add_text(right_generator, recipe_col_sell, y, row.sell_usd > 0 ? format_money_short(row.sell_usd) : bn::string<24>("-"),
                      ink_palette, row_sprites);
         }
 
