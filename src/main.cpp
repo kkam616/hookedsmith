@@ -2304,11 +2304,23 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         case phase::IDLE:
             set_forge_bgm_level(eco.level());
 
-            // 고양이 이벤트: 실패 결과 메시지를 다 보여 준 뒤 (파산 판정보다 먼저: 선물이 구제가 될 수 있다)
-            if(message_timer == 0 && ! help_mode && eco.cat_due())
+            // 고양이 이벤트: 실패 결과 메시지를 다 보여 준 뒤 (파산 판정보다 먼저: 선물이 구제가 될 수 있다).
+            // 고양이 차례가 된 뒤에는 메시지가 끝날 때까지 버튼을 받지 않는다. 안 그러면 그 사이에 다시 강화해서
+            // 성공한 뒤에 고양이가 나오는 일이 생긴다 (고양이는 "실패" 때문에 오는 것).
+            if(! help_mode && eco.cat_due())
             {
-                fade_screen(false);
-                return forge_exit::CAT;
+                if(message_timer == 0)
+                {
+                    fade_screen(false);
+                    return forge_exit::CAT;
+                }
+
+                if(! reveal_hold)
+                {
+                    update_idle_sword();
+                }
+
+                break;
             }
 
             // 파산: 메시지(판매·파괴 결과)를 다 보여 준 뒤 게임 오버

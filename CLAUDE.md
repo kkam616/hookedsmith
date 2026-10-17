@@ -42,6 +42,7 @@ HARD가 열려 있고, **SELECT 도움말에서 ↑** = 시간대를 낮 → 노
 - 기본 키: A=X, B=Z, L=A, R=S, START=Enter, SELECT=Space(이 PC 설정), 방향키.
 - RTC: `%APPDATA%\mGBA\config.ini`에 `[override.HKSM]` / `hardware=1`이 들어 있다 (mGBA를 닫은 상태에서만 고칠 것). 없으면 시간대가 항상 낮.
 - **자동 스크린샷(포커스 문제 없이, 권장)**: `. tools\mgba_auto.ps1`로 불러 `Start-Game <rom>`(mGBA를 `-3 -C screenshotPath=build\shots`로 실행), `Press $VK.A`(창에 키 메시지를 직접 보냄), `Shot '이름'`(F12 → 240x160 PNG를 `build/shots/`에 저장). 키 이름: `$VK.A/B/L/R/START/SELECT/LEFT/UP/RIGHT/DOWN`. 변수 `$VK`를 `$vk`로 덮어쓰지 말 것(PowerShell은 대소문자 구분 안 함). `Start-Game`은 `build/shots/*.png`를 지우니, 시험마다 따로 돌려서 결과를 바로 처리한다. 연출 확인은 `Stopwatch`로 프레임 시각(1프레임 ≈ 16.7ms)에 맞춰 `Shot`을 찍는다.
+- `Shot`은 F12 스크린샷이 저장되지 않으면(가끔 그렇다) 창의 화면 영역을 직접 캡처해 대신 저장한다 (`ok(screen)`). 이때는 **mGBA 창이 다른 창에 가려지면 가려진 화면이 찍히니** 창을 가리지 말 것.
 - 큰 확대본 만들기: Pillow로 `NEAREST` 4배.
 - computer-use로 mGBA를 직접 조작하면 포커스가 바탕화면(알림 창 등)에 잡혀 입력이 막히는 일이 잦다. 위 자동 스크린샷 방법을 쓸 것.
 
