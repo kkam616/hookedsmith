@@ -107,9 +107,7 @@ def recolor(image, mode):
             fire = r > 150 and r > b + 70
 
             # 방 안 분위기: 영역 안은 강하게, 영역 밖(화로 쪽은 제외)은 아주 약하게 같은 색조를 입힌다
-            tint_weight = f * 0.85 if f > 0 else (0.0 if fire or x >= 150 else 0.35)
-            if mode == 'sunset' and f == 0:
-                tint_weight *= 0.4
+            tint_weight = f * 0.85       # 영역 밖은 낮 그림 그대로 둔다 (색 수가 빠듯해서 바닥 질감이 뭉개지는 것을 막는다)
             tinted = tuple(max(0, min(255, c * ambient[i] + (3 if (mode == 'night' and i == 2) else 0))) for i, c in enumerate(rgb))
             base = mix(rgb, tinted, tint_weight)
 
@@ -146,26 +144,77 @@ def recolor(image, mode):
     return out
 
 
-def write_variant(name, image):
-    """낮 배경(make_forge_bg.py)과 같은 방식: 64색으로 줄여 256x256 8bpp, 0번은 안 쓰는 검정(투명 취급)"""
-    colors = 64
-    quantized = image.quantize(colors=colors, method=Image.Quantize.MAXCOVERAGE, kmeans=3, dither=Image.Dither.NONE)
-    raw = quantized.getpalette()
-    palette = [tuple(c & 0xF8 for c in raw[i * 3:i * 3 + 3]) for i in range(colors)]
+def build_indexed(image):
+    """낮 그림(graphics/forge_bg.bmp)의 팔레트·색 번호를 최대한 그대로 쓴다.
+    - 바뀌지 않는 영역(문 밖 영역 바깥)은 낮 그림과 똑같은 색 번호
+    - 영역 안에서만 쓰이던 팔레트 칸(낮 그림의 하늘·빛줄기 색)을 새 색으로 바꿔 쓰고, 나머지 픽셀은 가장 가까운 기존 색을 쓴다
+    반환: (색 번호 이미지 240x160, 팔레트 64색)"""
+    from PIL import ImageFilter
 
-    canvas = Image.new('P', (256, 256), 0)
-    pixels = quantized.load()
+    base = Image.open(SOURCE)
+    raw = base.getpalette()
+    palette = [tuple(raw[i * 3:i * 3 + 3]) for i in range(65)]          # 0번은 안 쓰는 검정
+    indices = base.crop((0, 0, WIDTH, HEIGHT))
+    ip = indices.load()
+
+    feather = in_region(Image.new('L', (WIDTH, HEIGHT), 0)).filter(ImageFilter.GaussianBlur(2.2))
+    fp = feather.load()
+
+    inside, outside = set(), set()
     for y in range(HEIGHT):
         for x in range(WIDTH):
-            canvas.putpixel((x, y), pixels[x, y] + 1)
+            (inside if fp[x, y] > 0 else outside).add(ip[x, y])
+    free = sorted(inside - outside)                                      # 새 색으로 바꿔 쓸 수 있는 칸
+    keep = sorted(outside)
 
-    canvas.putpalette([0, 0, 0] + [channel for color in palette for channel in color])
+    def dist(a, b):
+        return sum((a[i] - b[i]) ** 2 for i in range(3)) ** 0.5
+
+    def nearest(color, candidates):
+        best = min(candidates, key=lambda i: dist(color, palette[i]))
+        return best, dist(color, palette[best])
+
+    # 영역 안 픽셀 중 기존 색으로는 안 되는 것(하늘·빛줄기·달 등)만 새 색 후보로 모은다
+    special = []
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            if fp[x, y] > 0:
+                color = image.getpixel((x, y))
+                if nearest(color, keep)[1] > 26:
+                    special.append(color)
+
+    if special and free:
+        strip = Image.new('RGB', (len(special), 1))
+        strip.putdata(special)
+        quantized = strip.quantize(colors=len(free), method=Image.Quantize.MAXCOVERAGE, kmeans=5, dither=Image.Dither.NONE)
+        qraw = quantized.getpalette()
+        for slot, i in zip(free, range(len(free))):
+            palette[slot] = tuple(c & 0xF8 for c in qraw[i * 3:i * 3 + 3])
+
+    result = indices.copy()
+    rp = result.load()
+    candidates = keep + free
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            if fp[x, y] > 0:
+                rp[x, y] = nearest(image.getpixel((x, y)), candidates)[0]
+
+    return result, palette, len(free), len(special)
+
+
+def write_variant(name, image):
+    indices, palette, free_count, special_count = build_indexed(image)
+
+    canvas = Image.new('P', (256, 256), 0)
+    canvas.paste(indices, (0, 0))
+    canvas.putpalette([channel for color in palette for channel in color])
     path = os.path.join(ROOT, 'graphics', name + '.bmp')
     canvas.save(path + '.tmp', format='BMP')
     with open(path + '.tmp', 'rb') as handle:
         write_if_changed(path, handle.read())
     os.remove(path + '.tmp')
     write_if_changed(os.path.join(ROOT, 'graphics', name + '.json'), '{\n    "type": "regular_bg",\n    "bpp_mode": "bpp_8"\n}\n')
+    print('%s: 새 색 칸 %d개, 새 색이 필요한 픽셀 %d개' % (name, free_count, special_count))
 
 
 def main():
