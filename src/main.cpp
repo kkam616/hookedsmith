@@ -30,6 +30,8 @@
 #include "time_band.h"
 
 #include "bn_regular_bg_items_forge_bg.h"
+#include "bn_regular_bg_items_forge_bg_sunset.h"
+#include "bn_regular_bg_items_forge_bg_night.h"
 #include "bn_regular_bg_items_gameover_bg.h"
 #include "bn_regular_bg_items_menu_bg_shop.h"
 #include "bn_regular_bg_items_menu_bg_furnace.h"
@@ -478,6 +480,23 @@ const bn::regular_bg_item& title_item_for_now()
 
     default:
         return bn::regular_bg_items::title_day;
+    }
+}
+
+// 강화 화면 배경도 하루를 셋으로 나눠 바꾼다 (tools/make_forge_bg_time.py): 열린 문 밖 풍경과 바닥 빛줄기만 노을·밤으로 물든다.
+const bn::regular_bg_item& forge_bg_item(hs::time_band band)
+{
+    switch(band)
+    {
+
+    case hs::time_band::SUNSET:
+        return bn::regular_bg_items::forge_bg_sunset;
+
+    case hs::time_band::NIGHT:
+        return bn::regular_bg_items::forge_bg_night;
+
+    default:
+        return bn::regular_bg_items::forge_bg;
     }
 }
 
@@ -975,7 +994,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     bn::bg_palettes::set_transparent_color(bn::color(4, 3, 3));
 
     // 배경 그림은 tools/make_forge_bg.py (검·모루는 스프라이트가 올라온다)
-    bn::regular_bg_ptr background = bn::regular_bg_items::forge_bg.create_bg(title_bg_x, title_bg_y);
+    hs::time_band shown_band = hs::current_time_band();
+    bn::regular_bg_ptr background = forge_bg_item(shown_band).create_bg(title_bg_x, title_bg_y);
 
     // 버튼 아이콘(tools/make_icons.py, 모두 40px)과 아이콘 구석의 키 글자.
     // 아이콘은 z_order를 1로 두어 키 글자가 그 위에 그려지게 한다.
@@ -2160,6 +2180,16 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     refresh_status();
                 }
             }
+
+            // 배경도 시간대가 바뀌면 바꾼다 (평상시에만 — 연출·도움말 중에는 다음 기회에)
+            const hs::time_band band_now = hs::current_time_band();
+
+            if(band_now != shown_band && current_phase == phase::IDLE && ! help_mode)
+            {
+                shown_band = band_now;
+                background = forge_bg_item(band_now).create_bg(title_bg_x, title_bg_y);
+                background_palette = background.palette();
+            }
         }
 
         tick_forge_bgm();
@@ -3139,7 +3169,7 @@ pause_choice run_pause(const hs::economy& eco)
     constexpr const char* default_hint = "A 선택  B 돌아가기";
 
     // 강화 화면 배경을 흑백으로 어둡게 깔고, 글자는 검은 외곽선이 있는 폰트(hs::font_outline)로 쓴다
-    bn::regular_bg_ptr background = bn::regular_bg_items::forge_bg.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr background = forge_bg_item(hs::current_time_band()).create_bg(title_bg_x, title_bg_y);
     bn::bg_palette_ptr background_palette = background.palette();
     background_palette.set_grayscale_intensity(1);
     background_palette.set_fade(bn::color(0, 0, 0), bn::fixed(0.3));
@@ -3640,7 +3670,7 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
     bn::sprite_text_generator center_generator(hs::font_outline);
     center_generator.set_center_alignment();
 
-    bn::regular_bg_ptr background = bn::regular_bg_items::forge_bg.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr background = forge_bg_item(hs::current_time_band()).create_bg(title_bg_x, title_bg_y);
     bn::regular_bg_ptr room = bn::regular_bg_items::cat_room.create_bg(title_bg_x, title_bg_y);
     bn::regular_bg_ptr photo = bn::regular_bg_items::cat_photo.create_bg(title_bg_x, title_bg_y);
     room.set_priority(1);
