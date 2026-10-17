@@ -1089,6 +1089,10 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     text_line cost_value(center_generator, info_right_x, info_value_y);
     bn::optional<bn::sprite_ptr> cost_icon;
     text_line cost_qty_text(left_generator, 0, info_value_y);
+    // 재료 강화비: "필요 / [아이콘] x개수 / 이름"처럼 아이콘 아래에 작은 글씨로 무엇인지 적는다
+    bn::sprite_text_generator small_center_generator(hs::font_small);
+    small_center_generator.set_center_alignment();
+    text_line cost_name_text(small_center_generator, info_right_x, info_value_y + 15);
 
     // 아래 가운데 메시지 (한 줄 또는 두 줄). 모두 검은 외곽선이 있는 폰트(hs::font_outline)로 쓴다.
     bn::sprite_text_generator outline_generator(hs::font_outline);
@@ -1282,6 +1286,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         cost_label.set_text("강화비");
         cost_icon.reset();
         cost_qty_text.set_text("");
+        cost_name_text.set_text("");
 
         if(shown_level == hs::max_level)
         {
@@ -1301,6 +1306,22 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             cost_qty_text.set_x(start + 19);
             cost_qty_text.set_text(quantity_line);
             cost_value.set_text("");
+
+            // 라벨은 "필요", 아이콘 아래에 이름: 검은 "+19 검"(단계 색), 잡템은 이름
+            cost_label.set_text("필요");
+
+            if(row.cost_sword > 0)
+            {
+                bn::string<16> sword_name("+");
+                sword_name += bn::to_string<4>(row.cost_sword);
+                sword_name += " 검";
+                cost_name_text.set_text(sword_name);
+                cost_name_text.set_palette(row.cost_sword <= 5 ? normal_palette : row.cost_sword <= 16 ? blue_tint : red_tint);
+            }
+            else
+            {
+                cost_name_text.set_text(hs::material_names[int(row.cost_material)]);
+            }
         }
         else
         {
@@ -1380,6 +1401,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         cost_label.set_visible(! on);
         cost_value.set_visible(! on);
         cost_qty_text.set_visible(! on);
+        cost_name_text.set_visible(! on);
         message_line_1.set_visible(! on);
         message_line_2.set_visible(! on);
 
