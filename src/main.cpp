@@ -88,6 +88,8 @@
 #include "bn_sprite_items_fx.h"
 #include "bn_sprite_items_splash_logo.h"
 #include "bn_sprite_items_ico_ready.h"
+#include "bn_sprite_items_icon_recipe.h"
+#include "bn_regular_bg_items_recipe_paper.h"
 #include "bn_sprite_items_cat.h"
 #include "bn_regular_bg_items_cat_room.h"
 #include "bn_regular_bg_items_cat_photo.h"
@@ -917,6 +919,7 @@ enum class forge_exit
     PAUSE,      // START (일시정지 메뉴)
     GAME_OVER,  // 파산
     CAT,        // 강화 실패가 목표 횟수에 닿아 고양이 이벤트
+    RECIPE,     // SELECT 도움말에서 START: 레시피 (낡은 종이에 적힌 단계별 강화표)
 };
 
 constexpr int hammer_frames = 24;
@@ -1244,6 +1247,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     text_line help_line_2(center_generator, 0, chance_y);
     text_line help_line_3(center_generator, 0, chance_y + 16);
     bn::vector<bn::sprite_ptr, 16> help_label_sprites;
+    bn::optional<bn::sprite_ptr> recipe_icon;       // 도움말에서만 보이는 레시피 버튼 (잡화 ↓ 와 판매 B 사이)
     const button_layout* help_buttons[help_count] = {
         &upgrade_button, &sell_button, &shop_button, &furnace_button, &swords_button, &bag_button
     };
@@ -1388,6 +1392,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         help_line_2.set_text("");
         help_line_3.set_text("");
         help_label_sprites.clear();
+        recipe_icon.reset();
 
         bn::fixed gray = on ? 1 : 0;
         background_palette->set_grayscale_intensity(gray);
@@ -1423,6 +1428,12 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 center_generator.generate(help_buttons[index]->x, help_buttons[index]->y, help_labels[index],
                                           help_label_sprites);
             }
+
+            // 레시피 버튼: START로 연다. 키 글자는 잡화(↓)·판매(B)와 같은 줄(y 33)
+            recipe_icon = bn::sprite_items::icon_recipe.create_sprite(0, 48);
+            recipe_icon->set_z_order(1);
+            center_generator.generate(0, 48, "레시피", help_label_sprites);
+            center_generator.generate(0, 33, "START", help_label_sprites);
 
             // 판매·강화는 못 쓰는 상태여도 도움말에서는 컬러로 보여준다
             set_button_enabled(sell_icon_palette, sell_badge, true);
@@ -2297,6 +2308,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             }
             else if(help_mode)
             {
+                if(bn::keypad::start_pressed())
+                {
+                    play_select();
+                    fade_screen(false);
+                    return forge_exit::RECIPE;
+                }
+
                 int key = bn::keypad::a_held() ? 0 : bn::keypad::b_held() ? 1 : bn::keypad::l_held() ? 2 :
                           bn::keypad::r_held() ? 3 : bn::keypad::left_held() ? 4 : bn::keypad::down_held() ? 5 : -1;
 
@@ -3728,6 +3746,167 @@ void run_opening_cutscene()
 
 }
 
+// ─── 레시피 (강화 화면 SELECT 도움말에서 START) ─────────────────────────────
+// 낡은 종이(tools/make_recipe_paper.py)에 잉크로 적은 단계별 강화표. 지금 모드(STORY·HARD)의 값이 나오고,
+// 재료로 내는 단계는 붉은 잉크. ↑↓ 한 줄, L R 한 쪽(8줄)씩 넘기고 B·START로 닫는다.
+constexpr int recipe_visible_rows = 8;
+constexpr int recipe_row_y = -34;           // 첫 줄 가운데 y (화면 46) — 줄 간격 13
+constexpr int recipe_row_step = 13;
+
+void run_recipe(const hs::economy& eco)
+{
+    bn::regular_bg_ptr background = bn::regular_bg_items::recipe_paper.create_bg(title_bg_x, title_bg_y);
+
+    bn::sprite_text_generator left_generator(hs::font);
+    left_generator.set_left_alignment();
+    bn::sprite_text_generator right_generator(hs::font);
+    right_generator.set_right_alignment();
+    bn::sprite_text_generator small_left_generator(hs::font_small);
+    small_left_generator.set_left_alignment();
+    bn::sprite_text_generator small_right_generator(hs::font_small);
+    small_right_generator.set_right_alignment();
+
+    // 잉크 색: 짙은 갈색(보통), 붉은 잉크(재료), 번진 옅은 갈색(머리글·안내). 두 번째 색은 글자 그림자(번짐)
+    bn::sprite_palette_ptr ink_palette = create_two_tone_font_palette(bn::color(7, 4, 2), bn::color(19, 14, 9));
+    bn::sprite_palette_ptr red_palette = create_two_tone_font_palette(bn::color(19, 4, 3), bn::color(23, 15, 9));
+    bn::sprite_palette_ptr faint_palette = create_two_tone_font_palette(bn::color(18, 13, 8), bn::color(24, 19, 13));
+
+    bn::vector<bn::sprite_ptr, 32> fixed_sprites;
+    auto add_text = [&](bn::sprite_text_generator& generator, int x, int y, const bn::string_view& text,
+                        const bn::sprite_palette_ptr& palette, bn::ivector<bn::sprite_ptr>& target)
+    {
+        bn::vector<bn::sprite_ptr, 12> temp;
+        generator.generate(x, y, text, temp);
+
+        for(bn::sprite_ptr& sprite : temp)
+        {
+            sprite.set_palette(palette);
+            target.push_back(sprite);
+        }
+    };
+
+    add_text(left_generator, -108, -67, "레시피", ink_palette, fixed_sprites);
+    add_text(left_generator, -62, -67, eco.diff() == hs::difficulty::HARD ? "(HARD)" : "(STORY)", red_palette, fixed_sprites);
+    add_text(small_left_generator, -94, -51, "단계", faint_palette, fixed_sprites);
+    add_text(small_left_generator, -44, -51, "필요한 것", faint_palette, fixed_sprites);
+    add_text(small_right_generator, 70, -51, "성공", faint_palette, fixed_sprites);
+    add_text(small_right_generator, 110, -51, "판매가", faint_palette, fixed_sprites);
+    add_text(small_left_generator, -108, 69, "↑↓ 넘기기     B 닫기", faint_palette, fixed_sprites);
+
+    const hs::level_row* table = hs::level_table(eco.diff());
+    const int total = hs::max_level;                    // +0→1 ~ +28→29
+    int offset = eco.level() < total - recipe_visible_rows ? eco.level() : total - recipe_visible_rows;
+    int shown_offset = -1;
+    int hold = 0;
+
+    bn::vector<bn::sprite_ptr, 160> row_sprites;
+    bn::vector<bn::sprite_ptr, 4> arrow_sprites;
+
+    auto build = [&]()
+    {
+        row_sprites.clear();
+        arrow_sprites.clear();
+
+        for(int i = 0; i < recipe_visible_rows; ++i)
+        {
+            const int index = offset + i;
+            const hs::level_row& row = table[index];
+            const int y = recipe_row_y + i * recipe_row_step;
+            const bool material = row.cost_sword > 0 || row.cost_material != hs::material::NONE;
+            const bn::sprite_palette_ptr& tint = material ? red_palette : ink_palette;
+
+            bn::string<16> level_line = bn::to_string<4>(index);        // "+"는 빼서 필요한 것 칸과 붙어 보이지 않게 한다
+            level_line += "→";
+            level_line += bn::to_string<4>(index + 1);
+
+            bn::string<32> need_line;
+
+            if(row.cost_sword > 0)
+            {
+                need_line = "+";
+                need_line += bn::to_string<4>(row.cost_sword);
+                need_line += "검 x";
+                need_line += bn::to_string<4>(row.cost_qty);
+            }
+            else if(row.cost_material != hs::material::NONE)
+            {
+                need_line = hs::material_names[int(row.cost_material)];
+                need_line += " x";
+                need_line += bn::to_string<4>(row.cost_qty);
+            }
+            else if(row.cost_usd > 0)
+            {
+                need_line = format_money_short(row.cost_usd);
+            }
+            else
+            {
+                need_line = "무료";
+            }
+
+            bn::string<8> success_line = bn::to_string<4>(row.success_pct);
+            success_line += "%";
+
+            add_text(left_generator, -94, y, level_line, tint, row_sprites);
+            add_text(left_generator, -44, y, need_line, tint, row_sprites);
+            add_text(right_generator, 70, y, success_line, ink_palette, row_sprites);
+            add_text(right_generator, 110, y, row.sell_usd > 0 ? format_money_short(row.sell_usd) : bn::string<24>("-"),
+                     ink_palette, row_sprites);
+        }
+
+        if(offset > 0)
+        {
+            add_text(small_left_generator, 112, -49, "▲", ink_palette, arrow_sprites);
+        }
+
+        if(offset + recipe_visible_rows < total)
+        {
+            add_text(small_left_generator, 112, 58, "▼", ink_palette, arrow_sprites);
+        }
+
+        shown_offset = offset;
+    };
+
+    build();
+    fade_screen(true);
+
+    while(! bn::keypad::b_pressed() && ! bn::keypad::start_pressed())
+    {
+        const int max_offset = total - recipe_visible_rows;
+        int step = 0;
+
+        if(bn::keypad::up_pressed() || (bn::keypad::up_held() && hold > 16 && hold % 4 == 0))
+        {
+            step = -1;
+        }
+        else if(bn::keypad::down_pressed() || (bn::keypad::down_held() && hold > 16 && hold % 4 == 0))
+        {
+            step = 1;
+        }
+        else if(bn::keypad::l_pressed())
+        {
+            step = -recipe_visible_rows;
+        }
+        else if(bn::keypad::r_pressed())
+        {
+            step = recipe_visible_rows;
+        }
+
+        hold = bn::keypad::up_held() || bn::keypad::down_held() ? hold + 1 : 0;
+        offset += step;
+        offset = offset < 0 ? 0 : offset > max_offset ? max_offset : offset;
+
+        if(offset != shown_offset)
+        {
+            play_menu_move();
+            build();
+        }
+
+        bn::core::update();
+    }
+
+    fade_screen(false);
+}
+
 // ─── 고양이 이벤트 ──────────────────────────────────────────────────────
 // 강화 배경 위에 창이 열리고, 창 안으로 도트 고양이가 걸어 들어와 앉아 꼬리를 흔든 뒤, 같은 창에 고양이 사진이 나오며 야옹.
 // 창 아래에 "물어왔다" → 받은 것(검 또는 방지권) 메시지. 장면은 A로 넘긴다(깜빡이는 ▼). 그림 위치는 tools/make_cat_assets.py의 WINDOW_POS(77, 41)와 맞춘다.
@@ -4003,6 +4182,10 @@ int main()
             case forge_exit::CAT:
                 cut_forge_bgm();
                 run_cat_event(eco, random);
+                break;
+
+            case forge_exit::RECIPE:
+                run_recipe(eco);
                 break;
 
             default:
