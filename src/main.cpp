@@ -3856,64 +3856,68 @@ void run_recipe(const hs::economy& eco)
     int shown_offset = -1;
     int hold = 0;
 
-    bn::vector<bn::sprite_ptr, 160> row_sprites;
+    // 줄마다 따로 들고 있다가, 한 줄씩 넘길 때는 가려지는 줄 하나만 지우고 새로 보이는 줄 하나만 만든다.
+    // (스프라이트 타일은 한 프레임이 지나야 반환되니, 화면 전체를 지우고 같은 프레임에 다시 만들면 타일이 두 배로 필요해 VRAM이 모자란다)
+    bn::vector<bn::sprite_ptr, 24> slot_sprites[recipe_visible_rows];
     bn::vector<bn::sprite_ptr, 4> arrow_sprites;
 
-    auto build = [&]()
+    auto build_row = [&](int slot, int index)
     {
-        row_sprites.clear();
-        arrow_sprites.clear();
+        bn::ivector<bn::sprite_ptr>& target = slot_sprites[slot];
+        target.clear();
 
-        for(int i = 0; i < recipe_visible_rows; ++i)
+        const hs::level_row& row = table[index];
+        const int y = recipe_row_y + slot * recipe_row_step;
+        const bool material = row.cost_sword > 0 || row.cost_material != hs::material::NONE;
+        const bn::sprite_palette_ptr& tint = material ? red_palette : ink_palette;
+
+        bn::string<16> level_line = bn::to_string<4>(index);        // "+"는 빼서 필요한 것 칸과 붙어 보이지 않게 한다
+        level_line += "→";
+        level_line += bn::to_string<4>(index + 1);
+
+        bn::string<32> need_line;
+
+        if(row.cost_sword > 0)
         {
-            const int index = offset + i;
-            const hs::level_row& row = table[index];
-            const int y = recipe_row_y + i * recipe_row_step;
-            const bool material = row.cost_sword > 0 || row.cost_material != hs::material::NONE;
-            const bn::sprite_palette_ptr& tint = material ? red_palette : ink_palette;
-
-            bn::string<16> level_line = bn::to_string<4>(index);        // "+"는 빼서 필요한 것 칸과 붙어 보이지 않게 한다
-            level_line += "→";
-            level_line += bn::to_string<4>(index + 1);
-
-            bn::string<32> need_line;
-
-            if(row.cost_sword > 0)
-            {
-                need_line = "+";
-                need_line += bn::to_string<4>(row.cost_sword);
-                need_line += "검 x";
-                need_line += bn::to_string<4>(row.cost_qty);
-            }
-            else if(row.cost_material != hs::material::NONE)
-            {
-                need_line = hs::material_names[int(row.cost_material)];
-                need_line += " x";
-                need_line += bn::to_string<4>(row.cost_qty);
-            }
-            else if(row.cost_usd > 0)
-            {
-                need_line = format_money_short(row.cost_usd);
-            }
-            else
-            {
-                need_line = "무료";
-            }
-
-            bn::string<8> success_line = bn::to_string<4>(row.success_pct);
-            success_line += "%";
-
-            add_text(left_generator, recipe_col_level, y, level_line, tint, row_sprites);
-            add_text(left_generator, recipe_col_need, y, need_line, tint, row_sprites);
-            if(row.protect_cost > 0)       // 방지권을 못 쓰는 단계는 칸을 비워 둔다 (글자 조각을 아낀다)
-            {
-                add_text(right_generator, recipe_col_ticket, y, bn::to_string<8>(row.protect_cost), tint, row_sprites);
-            }
-
-            add_text(right_generator, recipe_col_success, y, success_line, ink_palette, row_sprites);
-            add_text(right_generator, recipe_col_sell, y, row.sell_usd > 0 ? format_money_short(row.sell_usd) : bn::string<24>("-"),
-                     ink_palette, row_sprites);
+            need_line = "+";
+            need_line += bn::to_string<4>(row.cost_sword);
+            need_line += "검 x";
+            need_line += bn::to_string<4>(row.cost_qty);
         }
+        else if(row.cost_material != hs::material::NONE)
+        {
+            need_line = hs::material_names[int(row.cost_material)];
+            need_line += " x";
+            need_line += bn::to_string<4>(row.cost_qty);
+        }
+        else if(row.cost_usd > 0)
+        {
+            need_line = format_money_short(row.cost_usd);
+        }
+        else
+        {
+            need_line = "무료";
+        }
+
+        bn::string<8> success_line = bn::to_string<4>(row.success_pct);
+        success_line += "%";
+
+        add_text(left_generator, recipe_col_level, y, level_line, tint, target);
+        add_text(left_generator, recipe_col_need, y, need_line, tint, target);
+
+        if(row.protect_cost > 0)       // 방지권을 못 쓰는 단계는 칸을 비워 둔다 (글자 조각을 아낀다)
+        {
+            add_text(right_generator, recipe_col_ticket, y, bn::to_string<8>(row.protect_cost), tint, target);
+        }
+
+        add_text(right_generator, recipe_col_success, y, success_line, ink_palette, target);
+        add_text(right_generator, recipe_col_sell, y, row.sell_usd > 0 ? format_money_short(row.sell_usd) : bn::string<24>("-"),
+                 ink_palette, target);
+    };
+
+    auto build_arrows = [&]()
+    {
+        arrow_sprites.clear();
 
         if(offset > 0)
         {
@@ -3924,11 +3928,15 @@ void run_recipe(const hs::economy& eco)
         {
             add_text(small_left_generator, 114, 58, "▼", ink_palette, arrow_sprites);
         }
-
-        shown_offset = offset;
     };
 
-    build();
+    for(int slot = 0; slot < recipe_visible_rows; ++slot)
+    {
+        build_row(slot, offset + slot);
+    }
+
+    build_arrows();
+    shown_offset = offset;
     fade_screen(true);
 
     while(! bn::keypad::b_pressed() && ! bn::keypad::start_pressed())
@@ -3960,7 +3968,62 @@ void run_recipe(const hs::economy& eco)
         if(offset != shown_offset)
         {
             play_menu_move();
-            build();
+            const int moved = offset - shown_offset;
+
+            if(moved == 1 || moved == -1)
+            {
+                // 한 줄: 나머지 줄은 그대로 위아래로 밀고, 빠지는 줄을 지운 자리에 새 줄 하나를 만든다
+                if(moved == 1)
+                {
+                    slot_sprites[0].clear();
+
+                    for(int slot = 0; slot < recipe_visible_rows - 1; ++slot)
+                    {
+                        slot_sprites[slot] = bn::move(slot_sprites[slot + 1]);
+
+                        for(bn::sprite_ptr& sprite : slot_sprites[slot])
+                        {
+                            sprite.set_y(sprite.y() - recipe_row_step);
+                        }
+                    }
+
+                    build_row(recipe_visible_rows - 1, offset + recipe_visible_rows - 1);
+                }
+                else
+                {
+                    slot_sprites[recipe_visible_rows - 1].clear();
+
+                    for(int slot = recipe_visible_rows - 1; slot > 0; --slot)
+                    {
+                        slot_sprites[slot] = bn::move(slot_sprites[slot - 1]);
+
+                        for(bn::sprite_ptr& sprite : slot_sprites[slot])
+                        {
+                            sprite.set_y(sprite.y() + recipe_row_step);
+                        }
+                    }
+
+                    build_row(0, offset);
+                }
+            }
+            else
+            {
+                // 한 쪽(8줄) 넘기기: 전부 지우고 한 프레임 쉰 뒤(타일 반환) 다시 만든다
+                for(int slot = 0; slot < recipe_visible_rows; ++slot)
+                {
+                    slot_sprites[slot].clear();
+                }
+
+                bn::core::update();
+
+                for(int slot = 0; slot < recipe_visible_rows; ++slot)
+                {
+                    build_row(slot, offset + slot);
+                }
+            }
+
+            build_arrows();
+            shown_offset = offset;
         }
 
         bn::core::update();
