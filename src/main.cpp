@@ -995,7 +995,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
     // 배경 그림은 tools/make_forge_bg.py (검·모루는 스프라이트가 올라온다)
     hs::time_band shown_band = hs::current_time_band();
-    bn::regular_bg_ptr background = forge_bg_item(shown_band).create_bg(title_bg_x, title_bg_y);
+    bn::optional<bn::regular_bg_ptr> background = forge_bg_item(shown_band).create_bg(title_bg_x, title_bg_y);
 
     // 버튼 아이콘(tools/make_icons.py, 모두 40px)과 아이콘 구석의 키 글자.
     // 아이콘은 z_order를 1로 두어 키 글자가 그 위에 그려지게 한다.
@@ -1229,7 +1229,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     // 버튼을 누르고 있는 동안만 위쪽 가운데에 설명이 나온다.
     bool help_mode = false;
     int help_key = -1;
-    bn::bg_palette_ptr background_palette = background.palette();
+    bn::optional<bn::bg_palette_ptr> background_palette = background->palette();
     bn::sprite_palette_ptr anvil_palette = anvil.palette();
     text_line help_line_1(center_generator, 0, name_y);
     text_line help_line_2(center_generator, 0, chance_y);
@@ -1362,7 +1362,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         help_label_sprites.clear();
 
         bn::fixed gray = on ? 1 : 0;
-        background_palette.set_grayscale_intensity(gray);
+        background_palette->set_grayscale_intensity(gray);
         anvil_palette.set_grayscale_intensity(gray);
         sword_palette.set_grayscale_intensity(gray);
         sword.set_visible(! on);        // 설명 셋째 줄이 검 끝과 겹치므로 도움말 동안은 검을 숨긴다
@@ -2187,8 +2187,10 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             if(band_now != shown_band && current_phase == phase::IDLE && ! help_mode)
             {
                 shown_band = band_now;
+                background_palette.reset();     // 배경 타일 VRAM이 모자라서 새 배경을 만들기 전에 이전 것을(팔레트까지) 먼저 반납한다
+                background.reset();
                 background = forge_bg_item(band_now).create_bg(title_bg_x, title_bg_y);
-                background_palette = background.palette();
+                background_palette = background->palette();
             }
         }
 
