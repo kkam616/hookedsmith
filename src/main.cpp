@@ -949,8 +949,8 @@ constexpr int coin_count = 32;
 constexpr int sell_lengths[3] = { 40, 60, 90 };
 constexpr int sell_vanish_frames[3] = { 10, 14, 20 };       // 검이 흐려지며 사라지는 시간
 constexpr int coin_floor_y = 66;                            // 동전이 튀는 바닥 (모루 아래)
-// 검(그림 53줄)은 화면 y 40부터(성공률 줄 아래), 모루(tools/make_anvil.py, 60x34)는 검 폼멜 바로 아래 y 92부터
-constexpr int sword_y = -8;
+// 검(그림 53줄)은 화면 y 42부터(성공률 줄 아래), 모루(tools/make_anvil.py, 60x34)는 검 폼멜 바로 아래 y 92부터
+constexpr int sword_y = -6;
 constexpr int anvil_y = 44;
 
 // 글자 자리 (Butano 좌표, 화면 가운데가 0,0).
