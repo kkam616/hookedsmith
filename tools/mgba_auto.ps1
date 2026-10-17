@@ -6,6 +6,7 @@ Add-Type -Namespace MG -Name Win -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
 [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 [DllImport("user32.dll")] public static extern bool GetClientRect(System.IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(System.IntPtr h, System.IntPtr after, int x, int y, int cx, int cy, uint flags);
 [DllImport("user32.dll")] public static extern bool ClientToScreen(System.IntPtr h, ref POINT p);
 '@
 
@@ -22,6 +23,8 @@ function Start-Game($rom) {
         if ($p.MainWindowHandle -ne [IntPtr]::Zero) { break }
     }
     $script:hwnd = $p.MainWindowHandle
+    # 화면 캡처 대체(Shot)가 다른 창에 가려지지 않게 mGBA 창을 맨 위에 둔다 (포커스는 뺏지 않는다)
+    [MG.Win]::SetWindowPos($script:hwnd, [IntPtr](-1), 0, 0, 0, 0, 0x13) | Out-Null
     return $p
 }
 
