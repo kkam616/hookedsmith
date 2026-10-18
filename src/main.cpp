@@ -89,6 +89,7 @@
 #include "bn_sprite_items_splash_logo.h"
 #include "bn_sprite_items_ico_ready.h"
 #include "bn_sprite_items_icon_recipe.h"
+#include "bn_sprite_tiles.h"
 #include "bn_sprite_items_thief.h"
 #include "bn_regular_bg_items_thief_room.h"
 #include "bn_regular_bg_items_thief_room_coins.h"
@@ -320,6 +321,14 @@ public:
 
     void set_text(const bn::string_view& text)
     {
+        // 같은 글이면 다시 만들지 않는다 (타일 조각화·낭비 방지). 흔들기 오프셋이 있으면 원위치가 필요하니 그땐 다시 만든다.
+        if(_has_text && _offset_x == 0 && _offset_y == 0 && _text == text)
+        {
+            return;
+        }
+
+        _text = text;
+        _has_text = true;
         _sprites.clear();
         _offset_x = 0;
         _offset_y = 0;
@@ -328,6 +337,7 @@ public:
         if(_sticky_palette)
         {
             set_palette(*_sticky_palette);
+            _has_text = true;
         }
 
         apply_visible();
@@ -336,6 +346,8 @@ public:
     // 글자 전체의 팔레트를 바꾼다. (Butano는 글자 여러 개를 스프라이트 하나로 묶어 그리므로, 일부 글자만 색을 바꾸려면 글을 나눠 만들어야 한다)
     void set_palette(const bn::sprite_palette_ptr& palette)
     {
+        _has_text = false;      // 색이 바뀌었으니 다음 set_text는 새로 만들어 기본 색으로 돌린다
+
         for(bn::sprite_ptr& sprite : _sprites)
         {
             sprite.set_palette(palette);
@@ -352,12 +364,14 @@ public:
     // 다음 set_text부터 적용되는 왼쪽(정렬 기준) x 좌표
     void set_x(int x)
     {
+        _has_text = false;
         _x = x;
     }
 
     // 다음 set_text부터 적용되는 y 좌표
     void set_y(int y)
     {
+        _has_text = false;
         _y = y;
     }
 
@@ -389,6 +403,8 @@ private:
     int _offset_x = 0;
     int _offset_y = 0;
     bn::vector<bn::sprite_ptr, 16> _sprites;
+    bn::string<128> _text;
+    bool _has_text = false;
 
     void apply_visible()
     {
@@ -1103,6 +1119,14 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     bn::sprite_text_generator small_center_generator(hs::font_small);
     small_center_generator.set_center_alignment();
     text_line cost_name_text(small_center_generator, info_right_x, info_value_y + 15);
+#ifdef HS_DEBUG
+    // 디버그: 지금 쓰는 스프라이트 타일 수와 그동안의 최대값을 맨 위 왼쪽에 보여 준다 (VRAM 1024칸 중)
+    bn::sprite_text_generator vram_generator(hs::font_small);
+    vram_generator.set_left_alignment();
+    text_line vram_text(vram_generator, -118, -76);
+    int vram_peak = 0;
+    int vram_frame = 0;
+#endif
 
     // 아래 가운데 메시지 (한 줄 또는 두 줄). 모두 검은 외곽선이 있는 폰트(hs::font_outline)로 쓴다.
     bn::sprite_text_generator outline_generator(hs::font_outline);
@@ -1492,7 +1516,6 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
     eco.set_time_penalty(hs::time_penalty_pct(hs::current_time_band()));
     // 검이 부서질 때: 두 동강 + 파편 몇 개 (조각 그림은 검 스프라이트의 프레임 2·3, 파편은 shard)
-    bn::optional<bn::sprite_ptr> piece_upper;
     bn::optional<bn::sprite_ptr> piece_lower;
     bn::vector<bn::sprite_ptr, shard_count> shards;
     bn::fixed_point upper_position, lower_position, upper_velocity, lower_velocity;
@@ -1506,14 +1529,14 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         const bn::sprite_item& item = *sword_items[sword_level];
         sword.set_x(0);
-        sword.set_visible(false);
         sword_palette.set_fade(bn::color(31, 31, 31), 0);
 
         upper_position = bn::fixed_point(0, sword_y);
         lower_position = bn::fixed_point(0, sword_y);
         upper_velocity = bn::fixed_point(-1.2, -2.2);      // 위쪽 조각은 왼쪽 위로 튀고
         lower_velocity = bn::fixed_point(0.8, -0.8);       // 아래쪽 조각은 살짝 오른쪽으로 떨어진다
-        piece_upper = item.create_sprite(upper_position, frame_upper);
+        sword.set_item(item, frame_upper);      // 위쪽 조각은 검 스프라이트를 그대로 써서 타일을 아낀다
+        sword.set_position(upper_position);
         piece_lower = item.create_sprite(lower_position, frame_lower);
 
         // 파편은 금 간 자리(검 한가운데 조금 위)에서 사방으로
@@ -2299,6 +2322,22 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         tick_forge_bgm();
 
+#ifdef HS_DEBUG
+        {
+            const int used = bn::sprite_tiles::used_tiles_count();
+            vram_peak = used > vram_peak ? used : vram_peak;
+
+            if(++vram_frame % 10 == 0)
+            {
+                bn::string<24> vram_line("T ");
+                vram_line += bn::to_string<8>(used);
+                vram_line += " / ";
+                vram_line += bn::to_string<8>(vram_peak);
+                vram_text.set_text(vram_line);
+            }
+        }
+#endif
+
         switch(current_phase)
         {
 
@@ -2450,9 +2489,9 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     }
                     else if(bn::keypad::l_pressed())
                     {
-                        constexpr int jump_levels[9] = { 5, 16, 21, 22, 23, 24, 25, 27, 28 };
+                        constexpr int jump_levels[10] = { 5, 14, 16, 21, 22, 23, 24, 25, 27, 28 };
                         eco.debug_set_level(jump_levels[debug_jump_index]);
-                        debug_jump_index = (debug_jump_index + 1) % 9;
+                        debug_jump_index = (debug_jump_index + 1) % 10;
                         refresh_status();
                     }
                     else
@@ -2680,8 +2719,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             lower_velocity += bn::fixed_point(0, 0.3);
             upper_position += upper_velocity;
             lower_position += lower_velocity;
-            piece_upper->set_position(upper_position);
-            piece_upper->set_rotation_angle(bn::fixed(360) - phase_frame * 3);      // 위쪽 조각은 왼쪽으로 돌며
+            sword.set_position(upper_position);
+            sword.set_rotation_angle(bn::fixed(360) - phase_frame * 3);      // 위쪽 조각은 왼쪽으로 돌며
             piece_lower->set_position(lower_position);
             piece_lower->set_rotation_angle(phase_frame * 2);                       // 아래쪽 조각은 오른쪽으로 돈다
 
@@ -2695,7 +2734,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
             if(phase_frame >= break_frames)
             {
-                piece_upper.reset();
+                sword.set_rotation_angle(0);
                 piece_lower.reset();
                 shards.clear();
                 sword.set_item(*sword_items[sword_level], frame_whole);
