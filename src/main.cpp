@@ -669,8 +669,8 @@ constexpr int menu_count = 3;
 constexpr const char* menu_labels[menu_count] = { "STORY", "HARD", "OPTION" };
 // 아이콘 셋(tools/make_title_icons.py, 32px)을 한 줄로: 가운데 HARD, 양옆 STORY·OPTION. 이름은 8x8 작은 폰트로 아이콘 바로 아래.
 constexpr int menu_icon_x[menu_count] = { -64, 0, 64 };
-constexpr int menu_icon_y = 28;
-constexpr int menu_label_y = 51;
+constexpr int menu_icon_y = 38;
+constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
