@@ -79,14 +79,17 @@ bool economy::upgrade(bn::seed_random& random)
 
     _money -= row().cost_usd;
     _spend_materials();
+    ++_stats.upgrades;
 
     if(random.get_int(100) < success_pct())
     {
         ++_level;
+        ++_stats.successes;
         _note_best();
         return true;
     }
 
+    ++_stats.fails;
     ++_fail_count;      // 방지권으로 막은 실패도, 파괴된 실패도 센다
     return false;
 }
@@ -96,6 +99,7 @@ void economy::protect()
     BN_ASSERT(can_protect(), "Invalid protect");
 
     _tickets -= row().protect_cost;
+    _stats.tickets_used = uint16_t(_stats.tickets_used + row().protect_cost);
 }
 
 drop economy::destroy(bn::seed_random& random)
@@ -123,6 +127,7 @@ drop economy::destroy(bn::seed_random& random)
         stock = int16_t(total > material_cap ? material_cap : total);
     }
 
+    ++_stats.broken;
     _level = 0;
     return result;
 }
@@ -133,6 +138,7 @@ int32_t economy::sell()
 
     int32_t earned = row().sell_usd;
     _add_money(earned);
+    _stats.money_earned += uint32_t(earned);
     _level = 0;
     return earned;
 }

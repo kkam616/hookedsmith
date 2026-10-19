@@ -52,6 +52,17 @@ struct thief_loss
     int32_t money = 0;
 };
 
+// 이번 판에서 센 숫자 (세이브하지 않는다: HARD 최고 도달 기록에 쓴다)
+struct run_stats
+{
+    uint16_t upgrades = 0;          // 강화 횟수
+    uint16_t successes = 0;         // 성공
+    uint16_t fails = 0;             // 실패
+    uint16_t broken = 0;            // 깨뜨린 검
+    uint16_t tickets_used = 0;      // 쓴 방지권 장수
+    uint32_t money_earned = 0;      // 판매로 번 돈
+};
+
 // 세이브에 들어갈 상태 전부 (난이도, 소지금, 단계, 방지권, 잡템, 보관 검)
 class economy
 {
@@ -65,6 +76,9 @@ public:
     [[nodiscard]] int fail_count() const { return _fail_count; }
     [[nodiscard]] int cat_target() const { return _cat_target; }
     [[nodiscard]] int best_level() const { return _best_level; }     // 지금까지 도달한 가장 높은 단계 (판매·파괴해도 남는다)
+    [[nodiscard]] const run_stats& stats() const { return _stats; }
+    // 새 최고 단계에 닿았는지 (읽으면 꺼진다)
+    [[nodiscard]] bool take_new_best() { bool value = _new_best; _new_best = false; return value; }
     [[nodiscard]] int tickets() const { return _tickets; }
     [[nodiscard]] int material_quantity(material item) const { return _materials[int(item)]; }
     [[nodiscard]] const bn::ivector<int8_t>& stored_swords() const { return _stored_swords; }
@@ -166,11 +180,13 @@ private:
     int _cat_target = 0;
     int _tickets = 0;
     int _thief_cooldown = 0;
+    run_stats _stats;
+    bool _new_best = false;
     bn::array<int16_t, material_count> _materials = {};
     bn::vector<int8_t, max_stored_swords> _stored_swords;
     int _time_penalty = 0;
 
-    void _note_best() { if(_level > _best_level) { _best_level = _level; } }
+    void _note_best() { if(_level > _best_level) { _best_level = _level; _new_best = true; } }
     void _add_money(int32_t amount);
     void _spend_materials();
 };

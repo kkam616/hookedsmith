@@ -38,6 +38,30 @@ namespace
 
     static_assert(sizeof(slot_data) <= 64, "슬롯은 64바이트 칸에 들어가야 한다");
 
+    // 기록 블록: 슬롯·머리글과 따로 두어 기존 저장을 건드리지 않는다
+    constexpr uint32_t record_magic = 0x44434552;     // "RECD"
+    constexpr uint8_t record_version = 1;
+    constexpr int record_offset = 256;
+
+    struct record_data
+    {
+        uint32_t magic;
+        uint8_t version;
+        uint8_t best_level;       // 0 = 기록 없음
+        uint8_t gallery;          // 아래쪽 6비트 = 엔딩 도감 (모드*3 + 시간대)
+        uint8_t reserved;
+        uint16_t upgrades;
+        uint16_t successes;
+        uint16_t fails;
+        uint16_t broken;
+        uint16_t tickets_used;
+        uint16_t reserved2;
+        uint32_t money_earned;
+        uint32_t checksum;
+    };
+
+    static_assert(sizeof(record_data) <= 64, "기록 블록은 64바이트 안에 들어가야 한다");
+
     constexpr int header_offset = 0;
     constexpr int slot_stride = 64;
     constexpr int slots_offset = 16;
@@ -198,6 +222,81 @@ bool load(int slot, economy& eco)
 {
     economy::snapshot state;
     return read_slot(slot, state) && eco.restore(state);
+}
+
+namespace
+{
+    bool read_record(record_data& out)
+    {
+        bn::sram::read_offset(out, record_offset);
+        return out.magic == record_magic && out.version == record_version && out.checksum == checksum_of(out);
+    }
+
+    void write_record(record_data& value)
+    {
+        value.magic = record_magic;
+        value.version = record_version;
+        value.checksum = checksum_of(value);
+        bn::sram::write_offset(value, record_offset);
+    }
+}
+
+best_record read_best()
+{
+    best_record result;
+    record_data data;
+
+    if(read_record(data) && data.best_level > 0)
+    {
+        result.valid = true;
+        result.level = data.best_level;
+        result.stats.upgrades = data.upgrades;
+        result.stats.successes = data.successes;
+        result.stats.fails = data.fails;
+        result.stats.broken = data.broken;
+        result.stats.tickets_used = data.tickets_used;
+        result.stats.money_earned = data.money_earned;
+    }
+
+    return result;
+}
+
+void write_best(int level, const run_stats& stats)
+{
+    record_data data = {};
+
+    if(! read_record(data))
+    {
+        data = {};
+    }
+
+    data.best_level = uint8_t(level);
+    data.upgrades = stats.upgrades;
+    data.successes = stats.successes;
+    data.fails = stats.fails;
+    data.broken = stats.broken;
+    data.tickets_used = stats.tickets_used;
+    data.money_earned = stats.money_earned;
+    write_record(data);
+}
+
+bool ending_seen(int index)
+{
+    record_data data;
+    return read_record(data) && (data.gallery & (1 << index)) != 0;
+}
+
+void mark_ending(int index)
+{
+    record_data data = {};
+
+    if(! read_record(data))
+    {
+        data = {};
+    }
+
+    data.gallery = uint8_t(data.gallery | (1 << index));
+    write_record(data);
 }
 
 bool hard_unlocked()

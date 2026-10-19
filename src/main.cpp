@@ -49,6 +49,17 @@
 #include "bn_regular_bg_items_scene6_dagger.h"
 #include "bn_regular_bg_items_scene7_forge_door.h"
 #include "bn_regular_bg_items_scene_bankrupt.h"
+#include "bn_regular_bg_items_option_bg.h"
+#include "bn_sprite_items_gallery_thumb_0.h"
+#include "bn_sprite_items_gallery_thumb_1.h"
+#include "bn_sprite_items_gallery_thumb_2.h"
+#include "bn_sprite_items_gallery_thumb_3.h"
+#include "bn_sprite_items_gallery_thumb_4.h"
+#include "bn_sprite_items_gallery_thumb_5.h"
+#include "bn_sprite_items_gallery_locked.h"
+#include "bn_sprite_items_gallery_icon_0.h"
+#include "bn_sprite_items_gallery_icon_1.h"
+#include "bn_sprite_items_gallery_icon_2.h"
 #include "bn_sprite_items_anvil.h"
 #include "bn_sprite_items_title_icon_hard.h"
 #include "bn_sprite_items_title_icon_option.h"
@@ -674,7 +685,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.4.1";
+constexpr const char* game_version = "v0.5.0";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -687,7 +698,10 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
     bn::bg_palettes::set_transparent_color(bn::color(4, 3, 3));
 
     // 타이틀 음악 (assets/audio/title_chiptune.wav → tools/make_music.py가 루프 XM으로 변환). 게임을 시작하면 끈다.
-    bn::music_items::title_chiptune.play(1);
+    if(! bn::music::playing())
+    {
+        bn::music_items::title_chiptune.play(1);        // 옵션 화면에서 돌아올 때는 이어서 들린다
+    }
 
     const bn::regular_bg_item* title_item = &title_item_for_now();
     bn::regular_bg_ptr bg = title_item->create_bg(title_bg_x, title_bg_y);
@@ -779,8 +793,9 @@ title_choice run_title(bool hard_unlocked, unsigned& seed)
         {
             if(selected == int(title_choice::OPTION))
             {
-                notice_text.set_text("OPTION - COMING SOON");
-                notice_frames = 90;
+                play_select();
+                fade_screen(false);
+                return title_choice::OPTION;        // 옵션 화면은 main()이 연다 (타이틀 스프라이트를 먼저 비우려고)
             }
             else if(! enabled(selected))
             {
@@ -2467,6 +2482,12 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     }
 #endif
                     upgrade_succeeded = eco.upgrade(random);
+
+                    // HARD: 새 최고 단계에 닿으면 그 순간까지의 숫자를 최고 도달 기록으로 남긴다 (저장 슬롯과 별개)
+                    if(eco.take_new_best() && eco.diff() == hs::difficulty::HARD)
+                    {
+                        hs::save::write_best(eco.best_level(), eco.stats());
+                    }
                     roll_thief();               // 밤이면 도둑 판정 (강화 한 번)
                     current_phase = phase::HAMMERING;
                     phase_frame = 0;
@@ -3964,31 +3985,470 @@ void run_bankrupt_cutscene()
     run_cutscene(bankrupt_scenes, nullptr);
 }
 
-// 엔딩 (+29): 컷씬 틀에 시간대(낮/노을/밤)별 엔딩 그림 + 문구, 이어서 HARD 해금 안내. 엔딩 그림·시나리오는 아직 없어
-// 그림은 오프닝 장면을 빌려 쓰고(낮 = 문 앞 / 노을 = 징수관 / 밤 = 포고문), 문구는 임시다. 나중에 그림과 대사만 바꾼다.
-constexpr dialogue_line ending_day_line = { "엔딩", "아침 엔딩입니다. (임시 문구)" };
-constexpr dialogue_line ending_sunset_line = { "엔딩", "노을 엔딩입니다. (임시 문구)" };
-constexpr dialogue_line ending_night_line = { "엔딩", "밤 엔딩입니다. (임시 문구)" };
+// 엔딩 (+29): 컷씬 틀에 (모드 × 시간대) 6종. 엔딩 그림·시나리오는 아직 없어 그림은 오프닝 장면을 빌려 쓰고 문구는 임시다.
+// 나중에 그림(ending_background)과 문구(ending_lines)만 바꾼다. 번호 = 모드*3 + 시간대 (모드 0 STORY / 1 HARD, 시간대 0 낮 / 1 노을 / 2 밤).
+constexpr dialogue_line ending_lines[6] = {
+    { "엔딩", "아침 엔딩입니다. (임시 문구)" },
+    { "엔딩", "노을 엔딩입니다. (임시 문구)" },
+    { "엔딩", "밤 엔딩입니다. (임시 문구)" },
+    { "엔딩", "HARD 아침 엔딩입니다. (임시 문구)" },
+    { "엔딩", "HARD 노을 엔딩입니다. (임시 문구)" },
+    { "엔딩", "HARD 밤 엔딩입니다. (임시 문구)" },
+};
 constexpr dialogue_line ending_unlock_line = { "알림", "HARD 모드가 해금되었습니다." };
 
-void run_ending()
+const bn::regular_bg_item& ending_background(int index)
 {
-    const hs::time_band band = hs::current_time_band();
-    const bn::regular_bg_item& background = band == hs::time_band::DAY ? bn::regular_bg_items::scene7_forge_door :
-            band == hs::time_band::SUNSET ? bn::regular_bg_items::scene4_tax_collector : bn::regular_bg_items::scene5_decree;
-    const dialogue_line& ending_line = band == hs::time_band::DAY ? ending_day_line :
-            band == hs::time_band::SUNSET ? ending_sunset_line : ending_night_line;
+    switch(index)
+    {
+    case 0: return bn::regular_bg_items::scene7_forge_door;
+    case 1: return bn::regular_bg_items::scene4_tax_collector;
+    case 2: return bn::regular_bg_items::scene5_decree;
+    case 3: return bn::regular_bg_items::scene6_dagger;
+    case 4: return bn::regular_bg_items::scene2_anvil;
+    default: return bn::regular_bg_items::scene_bankrupt;
+    }
+}
 
-    // 해금 안내는 처음 해금될 때만 (디버그 빌드는 항상 열려 있으니 확인용으로 늘 보여 준다)
-    bool announce_unlock = ! hs::save::hard_unlocked();
+void run_ending(hs::difficulty diff)
+{
+    const bool story = diff != hs::difficulty::HARD;
+    const int index = (story ? 0 : 3) + int(hs::current_time_band());
+
+    // 해금 안내는 STORY 엔딩에서 처음 해금될 때만 (디버그 빌드는 항상 열려 있으니 확인용으로 STORY에서는 늘 보여 준다)
+    bool announce_unlock = story && ! hs::save::hard_unlocked();
 #ifdef HS_DEBUG
-    announce_unlock = true;
+    announce_unlock = story;
 #endif
 
-    const dialogue_line lines[2] = { ending_line, ending_unlock_line };
-    const cutscene_scene scene = { background, bn::span<const dialogue_line>(lines, announce_unlock ? 2 : 1) };
+    const dialogue_line lines[2] = { ending_lines[index], ending_unlock_line };
+    const cutscene_scene scene = { ending_background(index), bn::span<const dialogue_line>(lines, announce_unlock ? 2 : 1) };
     run_cutscene(bn::span<const cutscene_scene>(&scene, 1), nullptr);
-    hs::save::unlock_hard();
+
+    hs::save::mark_ending(index);       // 엔딩 도감(Gallery)에 체크
+
+    if(story)
+    {
+        hs::save::unlock_hard();
+    }
+}
+
+// ─── OPTION (타이틀에서): Record / Gallery / Language ─────────────────────
+// 작업대 그림을 흑백으로 어둡게 깔고 글자는 외곽선 폰트로 쓴다. 화면마다 따로 만들고 지운다.
+
+bn::regular_bg_ptr option_background()
+{
+    return bn::regular_bg_items::option_bg.create_bg(title_bg_x, title_bg_y);       // 작업대 위 검 설계도 (흑백, tools/make_option_bg.py)
+}
+
+enum class option_choice
+{
+    RECORD,
+    GALLERY,
+    LANGUAGE,
+    BACK,
+};
+
+option_choice run_option_menu()
+{
+    constexpr int item_count = 3;
+    constexpr const char* item_names[item_count] = { "Record", "Gallery", "Language" };
+    constexpr int top_y = -8;
+    constexpr int step_y = 20;
+
+    bn::regular_bg_ptr background = option_background();
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+    bn::sprite_text_generator left_generator(hs::font_outline);
+    left_generator.set_left_alignment();
+
+    bn::sprite_palette_ptr gold = create_tinted_font_palette(bn::color(31, 26, 12));
+
+    bn::vector<bn::sprite_ptr, 8> title_sprites;
+    center_generator.generate(0, -44, "OPTION", title_sprites);
+
+    bn::vector<bn::sprite_ptr, 12> item_sprites[item_count];
+
+    for(int index = 0; index < item_count; ++index)
+    {
+        center_generator.generate(0, top_y + index * step_y, item_names[index], item_sprites[index]);
+    }
+
+    bn::vector<bn::sprite_ptr, 2> marker;
+    text_line footer_text(left_generator, -114, 70);
+    footer_text.set_text("A 선택  B 돌아가기");
+
+    int selected = 0;
+    int styled = -1;
+    int frame = 0;
+
+    fade_screen(true);
+
+    while(true)
+    {
+        ++frame;
+
+        if(bn::keypad::up_pressed())
+        {
+            selected = (selected + item_count - 1) % item_count;
+            play_menu_move();
+            frame = 8;
+        }
+        else if(bn::keypad::down_pressed())
+        {
+            selected = (selected + 1) % item_count;
+            play_menu_move();
+            frame = 8;
+        }
+        else if(bn::keypad::b_pressed())
+        {
+            fade_screen(false);
+            return option_choice::BACK;
+        }
+        else if(bn::keypad::a_pressed())
+        {
+            play_select();
+            fade_screen(false);
+            return option_choice(selected);
+        }
+
+        if(selected != styled)
+        {
+            styled = selected;
+            marker.clear();
+            left_generator.generate(-center_generator.width(item_names[selected]) / 2 - 18, top_y + selected * step_y, "▶", marker);
+            set_sprites_palette(marker, gold);
+        }
+
+        const int bob = (frame / 8) % 2 == 1 ? -2 : 0;
+
+        for(int index = 0; index < item_count; ++index)
+        {
+            for(bn::sprite_ptr& sprite : item_sprites[index])
+            {
+                sprite.set_y(top_y + index * step_y + (index == selected ? bob : 0));
+            }
+        }
+
+        for(bn::sprite_ptr& sprite : marker)
+        {
+            sprite.set_y(top_y + selected * step_y + bob);
+        }
+
+        bn::core::update();
+    }
+}
+
+// HARD 최고 도달 기록: 새 최고 단계에 닿는 순간 자동으로 남은 값 (그 순간까지의 강화·성공·실패·깨뜨린 검·방지권·번 돈)
+void run_record_screen()
+{
+    bn::regular_bg_ptr background = option_background();
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+    bn::sprite_text_generator left_generator(hs::font_outline);
+    left_generator.set_left_alignment();
+    bn::sprite_text_generator right_generator(hs::font_outline);
+    right_generator.set_right_alignment();
+    bn::sprite_text_generator small_generator(hs::font_small);
+    small_generator.set_center_alignment();
+
+    bn::sprite_palette_ptr gold = create_tinted_font_palette(bn::color(31, 26, 12));
+    bn::sprite_palette_ptr red = create_tinted_font_palette(bn::color(31, 7, 7));
+    bn::sprite_palette_ptr gray = create_tinted_font_palette(bn::color(18, 18, 18));
+    bn::sprite_palette_ptr light = create_tinted_font_palette(bn::color(25, 25, 25));
+
+    bn::vector<bn::sprite_ptr, 12> title_sprites;
+    center_generator.generate(0, -66, "RECORD", title_sprites);
+
+    bn::vector<bn::sprite_ptr, 24> subtitle_sprites;
+    small_generator.generate(0, -44, "HARD 최고 도달 기록", subtitle_sprites);
+    set_sprites_palette(subtitle_sprites, gold);
+
+    const hs::save::best_record best = hs::save::read_best();
+    bn::vector<bn::sprite_ptr, 24> level_sprites;
+    bn::vector<bn::sprite_ptr, 40> label_sprites;
+    bn::vector<bn::sprite_ptr, 40> value_sprites;
+    bn::vector<bn::sprite_ptr, 32> hint_sprites;
+
+    if(best.valid)
+    {
+        constexpr const char* labels[6] = { "강화", "성공", "실패", "깨뜨린 검", "방지권", "번 돈" };
+        const bn::string<24> values[6] = {
+            bn::to_string<24>(int(best.stats.upgrades)), bn::to_string<24>(int(best.stats.successes)),
+            bn::to_string<24>(int(best.stats.fails)), bn::to_string<24>(int(best.stats.broken)),
+            bn::to_string<24>(int(best.stats.tickets_used)), format_money_short(int32_t(best.stats.money_earned))
+        };
+
+        center_generator.generate(0, -24, sword_label(best.level), level_sprites);
+        set_sprites_palette(level_sprites, red);
+
+        for(int index = 0; index < 6; ++index)
+        {
+            const int column = index % 2;
+            const int y = 4 + (index / 2) * 18;
+            left_generator.generate(-100 + column * 108, y, labels[index], label_sprites);
+            right_generator.generate(-4 + column * 108, y, values[index], value_sprites);
+        }
+
+        set_sprites_palette(label_sprites, light);
+        small_generator.generate(0, 52, "새 최고 단계에 닿으면 자동 기록", hint_sprites);
+    }
+    else
+    {
+        center_generator.generate(0, 2, "아직 기록이 없습니다.", hint_sprites);
+    }
+
+    set_sprites_palette(hint_sprites, gray);
+
+    text_line footer_text(left_generator, -114, 70);
+    footer_text.set_text("B 돌아가기");
+
+    fade_screen(true);
+
+    while(! bn::keypad::b_pressed())
+    {
+        bn::core::update();
+    }
+
+    fade_screen(false);
+}
+
+// 엔딩 도감: STORY / HARD 두 줄 × 낮·노을·밤. 맨 아래 시간대 아이콘이 열 이름이다. 본 엔딩만 그림이 보이고 A로 크게 본다.
+void run_gallery_screen()
+{
+    constexpr int cell_x[3] = { -73, -1, 71 };
+    constexpr int row_y[2] = { -22, 22 };
+
+    bn::regular_bg_ptr background = option_background();
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+    bn::sprite_text_generator left_generator(hs::font_outline);
+    left_generator.set_left_alignment();
+
+    bn::sprite_palette_ptr gold = create_tinted_font_palette(bn::color(31, 26, 12));
+    bn::sprite_palette_ptr red = create_tinted_font_palette(bn::color(31, 7, 7));
+
+    bn::vector<bn::sprite_ptr, 12> title_sprites;
+    center_generator.generate(0, -66, "GALLERY", title_sprites);
+
+    bn::vector<bn::sprite_ptr, 8> story_sprites;
+    left_generator.generate(-106, -45, "STORY", story_sprites);
+    set_sprites_palette(story_sprites, gold);
+
+    bn::vector<bn::sprite_ptr, 8> hard_sprites;
+    left_generator.generate(-106, -1, "HARD", hard_sprites);
+    set_sprites_palette(hard_sprites, red);
+
+    const bn::sprite_item* thumb_items[6] = {
+        &bn::sprite_items::gallery_thumb_0, &bn::sprite_items::gallery_thumb_1, &bn::sprite_items::gallery_thumb_2,
+        &bn::sprite_items::gallery_thumb_3, &bn::sprite_items::gallery_thumb_4, &bn::sprite_items::gallery_thumb_5,
+    };
+    bn::optional<bn::sprite_ptr> cells[6];
+    bool seen[6];
+    int seen_count = 0;
+
+    for(int index = 0; index < 6; ++index)
+    {
+        seen[index] = hs::save::ending_seen(index);
+        seen_count += seen[index] ? 1 : 0;
+        const int x = cell_x[index % 3];
+        const int y = row_y[index / 3];
+        cells[index] = seen[index] ? thumb_items[index]->create_sprite(x, y) : bn::sprite_items::gallery_locked.create_sprite(x, y);
+    }
+
+    bn::sprite_ptr icons[3] = {
+        bn::sprite_items::gallery_icon_0.create_sprite(cell_x[0], 53),
+        bn::sprite_items::gallery_icon_1.create_sprite(cell_x[1], 53),
+        bn::sprite_items::gallery_icon_2.create_sprite(cell_x[2], 53),
+    };
+
+    bn::string<64> footer = bn::to_string<8>(seen_count);
+    footer += "/6  A 크게 보기  B 돌아가기";
+    text_line footer_text(left_generator, -114, 71);
+    footer_text.set_text(footer);
+
+    // 보는 동안 도감 화면은 숨겼다가 돌아와서 다시 보인다
+    auto set_gallery_visible = [&](bool visible)
+    {
+        background.set_visible(visible);
+
+        for(bn::sprite_ptr& sprite : title_sprites)
+        {
+            sprite.set_visible(visible);
+        }
+
+        for(bn::sprite_ptr& sprite : story_sprites)
+        {
+            sprite.set_visible(visible);
+        }
+
+        for(bn::sprite_ptr& sprite : hard_sprites)
+        {
+            sprite.set_visible(visible);
+        }
+
+        footer_text.set_visible(visible);
+
+        for(bn::optional<bn::sprite_ptr>& cell : cells)
+        {
+            cell->set_visible(visible);
+        }
+
+        for(bn::sprite_ptr& icon : icons)
+        {
+            icon.set_visible(visible);
+        }
+    };
+
+    int selected = 0;
+    int styled = -1;
+    int frame = 0;
+
+    fade_screen(true);
+
+    while(true)
+    {
+        ++frame;
+        int column = selected % 3;
+        int row = selected / 3;
+
+        if(bn::keypad::left_pressed())
+        {
+            column = (column + 2) % 3;
+            play_menu_move();
+            frame = 8;
+        }
+        else if(bn::keypad::right_pressed())
+        {
+            column = (column + 1) % 3;
+            play_menu_move();
+            frame = 8;
+        }
+        else if(bn::keypad::up_pressed() || bn::keypad::down_pressed())
+        {
+            row = 1 - row;
+            play_menu_move();
+            frame = 8;
+        }
+        else if(bn::keypad::b_pressed())
+        {
+            break;
+        }
+        else if(bn::keypad::a_pressed() && seen[selected])
+        {
+            play_select();
+            fade_screen(false);
+            set_gallery_visible(false);
+            const cutscene_scene scene = { ending_background(selected), bn::span<const dialogue_line>(&ending_lines[selected], 1) };
+            run_cutscene(bn::span<const cutscene_scene>(&scene, 1), nullptr);
+            set_gallery_visible(true);
+            fade_screen(true);
+        }
+
+        selected = row * 3 + column;
+
+        if(selected != styled)
+        {
+            styled = selected;
+
+            for(int index = 0; index < 6; ++index)
+            {
+                if(seen[index])
+                {
+                    bn::sprite_palette_ptr cell_palette = cells[index]->palette();
+                    cell_palette.set_fade(bn::color(0, 0, 0), index == selected ? bn::fixed(0) : bn::fixed(0.4));
+                }
+            }
+        }
+
+        for(int index = 0; index < 6; ++index)
+        {
+            const int offset = index == selected && (frame / 8) % 2 == 1 ? -2 : 0;
+            cells[index]->set_y(row_y[index / 3] + offset);
+        }
+
+        bn::core::update();
+    }
+
+    fade_screen(false);
+}
+
+// 언어: 지금은 한국어만 (영어는 문자열 표 작업 뒤에 연결)
+void run_language_screen()
+{
+    bn::regular_bg_ptr background = option_background();
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+    bn::sprite_text_generator left_generator(hs::font_outline);
+    left_generator.set_left_alignment();
+    bn::sprite_text_generator small_generator(hs::font_small);
+    small_generator.set_center_alignment();
+
+    bn::sprite_palette_ptr gold = create_tinted_font_palette(bn::color(31, 26, 12));
+    bn::sprite_palette_ptr gray = create_tinted_font_palette(bn::color(18, 18, 18));
+
+    bn::vector<bn::sprite_ptr, 12> title_sprites;
+    center_generator.generate(0, -44, "LANGUAGE", title_sprites);
+
+    bn::vector<bn::sprite_ptr, 12> korean_sprites;
+    center_generator.generate(0, -6, "한국어", korean_sprites);
+
+    bn::vector<bn::sprite_ptr, 12> english_sprites;
+    center_generator.generate(0, 14, "ENGLISH", english_sprites);
+    set_sprites_palette(english_sprites, gray);
+
+    bn::vector<bn::sprite_ptr, 16> soon_sprites;
+    small_generator.generate(0, 32, "(준비 중)", soon_sprites);
+    set_sprites_palette(soon_sprites, gray);
+
+    bn::vector<bn::sprite_ptr, 2> marker;
+    left_generator.generate(-center_generator.width("한국어") / 2 - 18, -6, "▶", marker);
+    set_sprites_palette(marker, gold);
+
+    text_line footer_text(left_generator, -114, 70);
+    footer_text.set_text("B 돌아가기");
+
+    fade_screen(true);
+
+    while(! bn::keypad::b_pressed())
+    {
+        bn::core::update();
+    }
+
+    fade_screen(false);
+}
+
+void run_option()
+{
+    while(true)
+    {
+        const option_choice choice = run_option_menu();
+        bn::core::update();         // 이전 화면의 스프라이트 타일을 먼저 비운다
+
+        if(choice == option_choice::BACK)
+        {
+            return;
+        }
+
+        if(choice == option_choice::RECORD)
+        {
+            run_record_screen();
+        }
+        else if(choice == option_choice::GALLERY)
+        {
+            run_gallery_screen();
+        }
+        else
+        {
+            run_language_screen();
+        }
+
+        bn::core::update();
+    }
 }
 
 }
@@ -4629,6 +5089,14 @@ int main()
         unsigned seed = 0;
         title_choice choice = run_title(hard_unlocked, seed);
 
+        if(choice == title_choice::OPTION)
+        {
+            bn::core::update();     // 타이틀의 스프라이트 타일을 먼저 비운다
+            run_option();
+            bn::core::update();
+            continue;
+        }
+
         hs::economy eco(choice == title_choice::HARD ? hs::difficulty::HARD : hs::difficulty::EASY);
 
         // NEW GAME / 저장 슬롯을 고른다. 불러오면 컷씬 없이 바로 시작하고, NEW GAME은 STORY만 오프닝 컷씬부터.
@@ -4690,7 +5158,7 @@ int main()
 
             case forge_exit::ENDING:
                 cut_forge_bgm();
-                run_ending();
+                run_ending(eco.diff());
                 quit = true;        // 타이틀로
                 break;
 

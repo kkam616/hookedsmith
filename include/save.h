@@ -28,6 +28,21 @@ void write(int slot, const economy& eco);
 [[nodiscard]] bool hard_unlocked();
 void unlock_hard();
 
+// ─ 기록 (슬롯과 별개의 독립 블록): HARD 최고 도달 기록 + 엔딩 도감 ─
+struct best_record
+{
+    bool valid = false;         // 아직 기록이 없으면 false
+    int level = 0;              // 도달한 최고 단계
+    run_stats stats;            // 그 단계에 닿은 순간까지의 숫자
+};
+
+[[nodiscard]] best_record read_best();
+void write_best(int level, const run_stats& stats);        // 새 최고 단계에 닿았을 때
+
+// 엔딩 도감: 번호 = 모드*3 + 시간대 (모드 0 STORY / 1 HARD, 시간대 0 낮 / 1 노을 / 2 밤)
+[[nodiscard]] bool ending_seen(int index);
+void mark_ending(int index);
+
 }
 
 #endif
