@@ -60,7 +60,7 @@ struct run_stats
     uint16_t fails = 0;             // 실패
     uint16_t broken = 0;            // 깨뜨린 검
     uint16_t tickets_used = 0;      // 쓴 방지권 장수
-    uint32_t money_earned = 0;      // 판매로 번 돈
+    uint32_t peak_money = 0;        // 가장 많이 가졌던 소지금 (시작 자금부터)
 };
 
 // 세이브에 들어갈 상태 전부 (난이도, 소지금, 단계, 방지권, 잡템, 보관 검)

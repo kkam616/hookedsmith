@@ -686,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.1";
+constexpr const char* game_version = "v0.5.2";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -4206,26 +4206,29 @@ void run_record_screen()
 
     if(best.valid)
     {
-        constexpr const char* labels[6] = { "강화", "성공", "실패", "깨뜨린 검", "방지권", "번 돈" };
-        const bn::string<24> values[6] = {
+        constexpr const char* labels[5] = { "강화", "성공", "실패", "깨뜨린 검", "방지권" };
+        const bn::string<24> values[5] = {
             bn::to_string<24>(int(best.stats.upgrades)), bn::to_string<24>(int(best.stats.successes)),
             bn::to_string<24>(int(best.stats.fails)), bn::to_string<24>(int(best.stats.broken)),
-            bn::to_string<24>(int(best.stats.tickets_used)), format_money_short(int32_t(best.stats.money_earned))
+            bn::to_string<24>(int(best.stats.tickets_used))
         };
 
         center_generator.generate(0, -24, sword_label(best.level), level_sprites);
         set_sprites_palette(level_sprites, red);
 
-        for(int index = 0; index < 6; ++index)
+        for(int index = 0; index < 5; ++index)
         {
             const int column = index % 2;
-            const int y = 4 + (index / 2) * 18;
+            const int y = 0 + (index / 2) * 16;
             left_generator.generate(-100 + column * 108, y, labels[index], label_sprites);
             right_generator.generate(-4 + column * 108, y, values[index], value_sprites);
         }
 
+        // 최고 소지금: 한 줄을 통째로 쓴다 (가장 많이 가졌던 금액, 시작 자금부터)
+        left_generator.generate(-100, 52, "최고 소지금", label_sprites);
+        right_generator.generate(104, 52, format_money_short(int32_t(best.stats.peak_money)), value_sprites);
+
         set_sprites_palette(label_sprites, light);
-        small_generator.generate(0, 52, "새 최고 단계에 닿으면 자동 기록", hint_sprites);
     }
     else
     {

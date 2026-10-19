@@ -56,7 +56,7 @@ namespace
         uint16_t broken;
         uint16_t tickets_used;
         uint16_t reserved2;
-        uint32_t money_earned;
+        uint32_t peak_money;      // 가장 많이 가졌던 소지금
         uint32_t checksum;
     };
 
@@ -255,7 +255,7 @@ best_record read_best()
         result.stats.fails = data.fails;
         result.stats.broken = data.broken;
         result.stats.tickets_used = data.tickets_used;
-        result.stats.money_earned = data.money_earned;
+        result.stats.peak_money = data.peak_money;
     }
 
     return result;
@@ -276,7 +276,7 @@ void write_best(int level, const run_stats& stats)
     data.fails = stats.fails;
     data.broken = stats.broken;
     data.tickets_used = stats.tickets_used;
-    data.money_earned = stats.money_earned;
+    data.peak_money = stats.peak_money;
     write_record(data);
 }
 

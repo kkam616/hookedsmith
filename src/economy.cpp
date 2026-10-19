@@ -15,6 +15,7 @@ economy::economy(difficulty diff) :
     _diff(diff),
     _money(diff == difficulty::HARD ? start_money_hard : start_money_easy)
 {
+    _stats.peak_money = uint32_t(_money);       // 시작 자금도 "가장 많이 가졌던 소지금"에 든다
 }
 
 bool economy::can_afford_materials() const
@@ -138,7 +139,6 @@ int32_t economy::sell()
 
     int32_t earned = row().sell_usd;
     _add_money(earned);
-    _stats.money_earned += uint32_t(earned);
     _level = 0;
     return earned;
 }
@@ -449,6 +449,11 @@ void economy::debug_bankrupt()
 void economy::_add_money(int32_t amount)
 {
     _money = amount > money_cap - _money ? money_cap : _money + amount;
+
+    if(uint32_t(_money) > _stats.peak_money)
+    {
+        _stats.peak_money = uint32_t(_money);
+    }
 }
 
 }
