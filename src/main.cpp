@@ -690,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.2";
+constexpr const char* game_version = "v0.6.3";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -2877,6 +2877,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             if(phase_frame >= break_frames)
             {
                 sword.set_rotation_angle(0);
+                sword.set_position(0, sword_y);       // 위쪽 조각으로 쓰던 검 스프라이트를 제자리로 (+0에서 깨지면 새 스프라이트를 만들지 않아 날아간 자리에 남던 문제)
                 piece_lower.reset();
                 shards.clear();
                 sword.set_item(*sword_items[sword_level], frame_whole);
