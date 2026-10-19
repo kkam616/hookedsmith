@@ -947,6 +947,7 @@ enum class forge_exit
     CAT,        // 강화 실패가 목표 횟수에 닿아 고양이 이벤트
     RECIPE,     // SELECT 도움말에서 START: 레시피 (낡은 종이에 적힌 단계별 강화표)
     THIEF,      // 밤에 도둑이 들어 창고의 검(없으면 돈)을 훔쳐 간다
+    ENDING,     // +29에서 A: 엔딩 컷 (시간대별) + HARD 해금 안내
 };
 
 constexpr int hammer_frames = 24;
@@ -1262,6 +1263,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     int idle_tick = 0;
     int idle_glint_dy = 0;                          // 반짝임이 검 가운데보다 얼마나 위인지
     bn::optional<bn::sprite_ptr> idle_glint;        // 반짝임 (fx 팔레트를 잠깐만 쓰도록 반짝이는 동안만 만든다)
+
+    bool ending_pending = false;        // +29에서 A를 눌러 "엔딩으로.." 메시지가 끝나면 엔딩 화면으로 간다
 
     // 도둑 이벤트: 밤에 강화·판매를 마칠 때마다 한 번 판정하고, 걸리면 결과 메시지가 끝난 뒤(IDLE) 도둑이 든다
     bool thief_pending = false;
@@ -2374,6 +2377,14 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 return forge_exit::GAME_OVER;
             }
 
+            // 엔딩: "엔딩으로.." 메시지가 끝난 뒤
+            if(ending_pending && message_timer == 0 && ! help_mode)
+            {
+                ending_pending = false;
+                fade_screen(false);
+                return forge_exit::ENDING;
+            }
+
             // 도둑 이벤트: 결과 메시지가 끝난 뒤 (게임 오버 판정 다음)
             if(thief_pending && message_timer == 0 && ! help_mode)
             {
@@ -2429,9 +2440,10 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             {
                 if(eco.at_max_level())
                 {
-                    // 최종 검(+29): 엔딩으로 가는 안내 (화려한 색이 도는 글자가 흔들린다). 엔딩 화면은 아직 없다.
+                    // 최종 검(+29): 엔딩으로 가는 안내 (화려한 색이 도는 글자가 흔들린다). 메시지가 끝나면 엔딩 화면으로 간다.
                     show_message("엔딩으로..", &money_palette);
                     ending_shake = true;
+                    ending_pending = true;
                 }
                 else if(! eco.can_afford_money())
                 {
@@ -2493,9 +2505,9 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     }
                     else if(bn::keypad::l_pressed())
                     {
-                        constexpr int jump_levels[10] = { 5, 14, 16, 21, 22, 23, 24, 25, 27, 28 };
+                        constexpr int jump_levels[11] = { 5, 14, 16, 21, 22, 23, 24, 25, 27, 28, 29 };
                         eco.debug_set_level(jump_levels[debug_jump_index]);
-                        debug_jump_index = (debug_jump_index + 1) % 10;
+                        debug_jump_index = (debug_jump_index + 1) % 11;
                         refresh_status();
                     }
                     else
@@ -3892,6 +3904,33 @@ void run_bankrupt_cutscene()
     run_cutscene(bankrupt_scenes, nullptr);
 }
 
+// 엔딩 (+29): 컷씬 틀에 시간대(낮/노을/밤)별 엔딩 그림 + 문구, 이어서 HARD 해금 안내. 엔딩 그림·시나리오는 아직 없어
+// 그림은 오프닝 장면을 빌려 쓰고(낮 = 문 앞 / 노을 = 징수관 / 밤 = 포고문), 문구는 임시다. 나중에 그림과 대사만 바꾼다.
+constexpr dialogue_line ending_day_line = { "엔딩", "아침 엔딩입니다. (임시 문구)" };
+constexpr dialogue_line ending_sunset_line = { "엔딩", "노을 엔딩입니다. (임시 문구)" };
+constexpr dialogue_line ending_night_line = { "엔딩", "밤 엔딩입니다. (임시 문구)" };
+constexpr dialogue_line ending_unlock_line = { "알림", "HARD 모드가 해금되었습니다." };
+
+void run_ending()
+{
+    const hs::time_band band = hs::current_time_band();
+    const bn::regular_bg_item& background = band == hs::time_band::DAY ? bn::regular_bg_items::scene7_forge_door :
+            band == hs::time_band::SUNSET ? bn::regular_bg_items::scene4_tax_collector : bn::regular_bg_items::scene5_decree;
+    const dialogue_line& ending_line = band == hs::time_band::DAY ? ending_day_line :
+            band == hs::time_band::SUNSET ? ending_sunset_line : ending_night_line;
+
+    // 해금 안내는 처음 해금될 때만 (디버그 빌드는 항상 열려 있으니 확인용으로 늘 보여 준다)
+    bool announce_unlock = ! hs::save::hard_unlocked();
+#ifdef HS_DEBUG
+    announce_unlock = true;
+#endif
+
+    const dialogue_line lines[2] = { ending_line, ending_unlock_line };
+    const cutscene_scene scene = { background, bn::span<const dialogue_line>(lines, announce_unlock ? 2 : 1) };
+    run_cutscene(bn::span<const cutscene_scene>(&scene, 1), nullptr);
+    hs::save::unlock_hard();
+}
+
 }
 
 // ─── 레시피 (강화 화면 SELECT 도움말에서 START) ─────────────────────────────
@@ -4587,6 +4626,12 @@ int main()
                 {
                     cut_forge_bgm();
                 }
+                break;
+
+            case forge_exit::ENDING:
+                cut_forge_bgm();
+                run_ending();
+                quit = true;        // 타이틀로
                 break;
 
             case forge_exit::GAME_OVER:
