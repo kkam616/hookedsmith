@@ -686,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.6";
+constexpr const char* game_version = "v0.5.7";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -1318,8 +1318,10 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     text_line help_line_3(center_generator, 0, chance_y + 16);
     bn::vector<bn::sprite_ptr, 16> help_label_sprites;
     bn::optional<bn::sprite_ptr> recipe_icon;       // 도움말에서만 보이는 레시피 버튼 (잡화 ↓ 와 판매 B 사이)
-    bn::optional<bn::sprite_ptr> time_icon;         // 도움말에서만 보이는 컬러 시간대 아이콘 (배경에 구운 아이콘 자리, ↑ 로 설명)
-    bool time_icon_refresh = false;
+    // 도움말을 열고 닫을 때 글자를 지우는 것과 새로 만드는 것을 같은 프레임에 하면, 지운 타일은 한 프레임 뒤에야 돌아와서 VRAM이 모자라 멈춘다.
+    // 그래서 열 때는 상태 글자를 지운 뒤 두 프레임 뒤에 도움말 글자를 만들고, 닫을 때는 도움말 글자를 지운 뒤 두 프레임 뒤에 상태를 다시 그린다.
+    int help_labels_delay = 0;
+    int status_refresh_delay = 0;
 #ifdef HS_DEBUG
     const char* debug_band_name = nullptr;
 #endif
@@ -1458,11 +1460,44 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
     };
 
-    auto make_time_icon = [&]()
+    // 도움말은 배경을 흑백으로 만든다. 배경 팔레트의 65번 이후 색은 시간대 아이콘 전용(tools/make_forge_bg_time.py)이라
+    // 앞쪽 65색만 회색으로 바꾸고 아이콘 색은 그대로 둔다: 스프라이트(VRAM)를 따로 쓰지 않고 아이콘이 컬러로 보인다.
+    constexpr int bg_gray_colors = 65;
+
+    auto set_background_gray = [&](bool gray)
     {
-        const bn::sprite_item* items[3] = { &bn::sprite_items::gallery_icon_0, &bn::sprite_items::gallery_icon_1, &bn::sprite_items::gallery_icon_2 };
-        time_icon = items[int(hs::current_time_band())]->create_sprite(-105, -25);      // 배경 아이콘(18x18, 화면 6,46)과 같은 자리
-        time_icon->set_z_order(1);
+        if(gray)
+        {
+            const bn::span<const bn::color>& source = forge_bg_item(shown_band).palette_item().colors_ref();
+
+            for(int index = 1; index < bg_gray_colors && index < source.size(); ++index)
+            {
+                const bn::color& color = source[index];
+                const int value = (color.red() * 77 + color.green() * 150 + color.blue() * 29) / 256;
+                background_palette->set_color(index, bn::color(value, value, value));
+            }
+        }
+        else
+        {
+            background_palette->set_colors(forge_bg_item(shown_band).palette_item());
+        }
+    };
+
+    auto build_help_labels = [&]()
+    {
+        for(int index = 0; index < help_count; ++index)
+        {
+            center_generator.generate(help_buttons[index]->x, help_buttons[index]->y, help_labels[index],
+                                      help_label_sprites);
+        }
+
+        // 레시피 버튼: START로 연다. 키 글자는 잡화(↓)·판매(B)와 같은 줄(y 33)
+        recipe_icon = bn::sprite_items::icon_recipe.create_sprite(0, 48);
+        recipe_icon->set_z_order(1);
+        center_generator.generate(0, 48, "레시피", help_label_sprites);
+        center_generator.generate(0, 33, "START", help_label_sprites);
+
+        center_generator.generate(-89, -25, "↑", help_label_sprites);        // 시간대 아이콘 옆의 키 표시 (←·↓ 처럼)
     };
 
     auto set_help = [&](bool on)
@@ -1470,16 +1505,16 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         idle_glint.reset();
         help_mode = on;
         help_key = -1;
+        help_labels_delay = 0;
+        status_refresh_delay = 0;
         help_line_1.set_text("");
         help_line_2.set_text("");
         help_line_3.set_text("");
         help_label_sprites.clear();
         recipe_icon.reset();
-        time_icon.reset();
-        time_icon_refresh = false;
 
         bn::fixed gray = on ? 1 : 0;
-        background_palette->set_grayscale_intensity(gray);
+        set_background_gray(on);
         anvil_palette.set_grayscale_intensity(gray);
         sword_palette.set_grayscale_intensity(gray);
         sword.set_visible(! on);        // 설명 셋째 줄이 검 끝과 겹치므로 도움말 동안은 검을 숨긴다
@@ -1507,20 +1542,22 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         if(on)
         {
-            for(int index = 0; index < help_count; ++index)
-            {
-                center_generator.generate(help_buttons[index]->x, help_buttons[index]->y, help_labels[index],
-                                          help_label_sprites);
-            }
-
-            // 레시피 버튼: START로 연다. 키 글자는 잡화(↓)·판매(B)와 같은 줄(y 33)
-            recipe_icon = bn::sprite_items::icon_recipe.create_sprite(0, 48);
-            recipe_icon->set_z_order(1);
-            center_generator.generate(0, 48, "레시피", help_label_sprites);
-            center_generator.generate(0, 33, "START", help_label_sprites);
-
-            make_time_icon();
-            center_generator.generate(-89, -25, "↑", help_label_sprites);        // 시간대 아이콘 옆의 키 표시 (←·↓ 처럼)
+            // 숨겨 두는 상태 글자도 타일을 차지하니 지워서 VRAM을 비운다 (닫을 때 refresh_status가 다시 그린다)
+            name_prefix_text.set_text("");
+            name_rest_text.set_text("");
+            chance_text.set_text("");
+            cost_label.set_text("");
+            cost_value.set_text("");
+            cost_qty_text.set_text("");
+            cost_name_text.set_text("");
+            message_line_1.set_text("");
+            message_line_2.set_text("");
+            sell_label.set_text("");
+            sell_value.set_text("");
+            money_text.set_text("");
+            best_text.set_text("");
+            best_name_text.set_text("");
+            help_labels_delay = 2;
 
             // 판매·강화는 못 쓰는 상태여도 도움말에서는 컬러로 보여준다
             set_button_enabled(sell_icon_palette, sell_badge, true);
@@ -1530,7 +1567,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
         else
         {
-            refresh_status();
+            status_refresh_delay = 2;
         }
     };
 
@@ -2363,6 +2400,16 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
 
         tick_forge_bgm();
 
+        if(help_labels_delay > 0 && --help_labels_delay == 0 && help_mode)
+        {
+            build_help_labels();
+        }
+
+        if(status_refresh_delay > 0 && --status_refresh_delay == 0 && ! help_mode)
+        {
+            refresh_status();
+        }
+
 #ifdef HS_DEBUG
         {
             const int used = bn::sprite_tiles::used_tiles_count();
@@ -2449,19 +2496,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     return forge_exit::RECIPE;
                 }
 
-                if(time_icon_refresh)       // 아이콘을 지운 다음 프레임에 새로 만든다 (스프라이트 팔레트가 빠듯해서)
-                {
-                    time_icon_refresh = false;
-                    make_time_icon();
-                }
-
 #ifdef HS_DEBUG
                 // 디버그: ↑ 을 누를 때마다 시간대를 낮 → 노을 → 밤 → 실제 시계로 돌리고, 세 번째 줄에 지금 시간대를 보여 준다
                 if(bn::keypad::up_pressed())
                 {
                     debug_band_name = hs::debug_cycle_time_band();
-                    time_icon.reset();
-                    time_icon_refresh = true;
                     help_key = -1;
                 }
 #endif
