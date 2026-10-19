@@ -686,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.2";
+constexpr const char* game_version = "v0.5.3";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -4190,6 +4190,7 @@ void run_record_screen()
     bn::sprite_palette_ptr red = create_tinted_font_palette(bn::color(31, 7, 7));
     bn::sprite_palette_ptr gray = create_tinted_font_palette(bn::color(18, 18, 18));
     bn::sprite_palette_ptr light = create_tinted_font_palette(bn::color(25, 25, 25));
+    bn::sprite_palette_ptr money_palette = create_two_tone_font_palette(gold_body_color, gold_outline_color);
 
     bn::vector<bn::sprite_ptr, 12> title_sprites;
     center_generator.generate(0, -66, "RECORD", title_sprites);
@@ -4202,6 +4203,7 @@ void run_record_screen()
     bn::vector<bn::sprite_ptr, 24> level_sprites;
     bn::vector<bn::sprite_ptr, 40> label_sprites;
     bn::vector<bn::sprite_ptr, 40> value_sprites;
+    bn::vector<bn::sprite_ptr, 24> money_sprites;
     bn::vector<bn::sprite_ptr, 32> hint_sprites;
 
     if(best.valid)
@@ -4213,20 +4215,21 @@ void run_record_screen()
             bn::to_string<24>(int(best.stats.tickets_used))
         };
 
-        center_generator.generate(0, -24, sword_label(best.level), level_sprites);
+        center_generator.generate(0, -26, sword_label(best.level), level_sprites);
         set_sprites_palette(level_sprites, red);
 
         for(int index = 0; index < 5; ++index)
         {
             const int column = index % 2;
-            const int y = 0 + (index / 2) * 16;
+            const int y = -4 + (index / 2) * 16;        // 줄 간격 16px 균등
             left_generator.generate(-100 + column * 108, y, labels[index], label_sprites);
             right_generator.generate(-4 + column * 108, y, values[index], value_sprites);
         }
 
         // 최고 소지금: 한 줄을 통째로 쓴다 (가장 많이 가졌던 금액, 시작 자금부터)
-        left_generator.generate(-100, 52, "최고 소지금", label_sprites);
-        right_generator.generate(104, 52, format_money_short(int32_t(best.stats.peak_money)), value_sprites);
+        left_generator.generate(-100, 44, "최고 소지금", label_sprites);
+        right_generator.generate(104, 44, format_money(int(best.stats.peak_money)), money_sprites);       // 인게임 돈처럼 전체 금액, 노란색
+        set_sprites_palette(money_sprites, money_palette);
 
         set_sprites_palette(label_sprites, light);
     }

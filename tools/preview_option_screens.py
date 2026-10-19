@@ -19,10 +19,7 @@ GOLD = (255, 214, 96)
 
 
 def background():
-    bg = Image.open(os.path.join(ROOT, 'graphics', 'forge_bg_night.bmp')).convert('RGB').crop((0, 0, 240, 160))
-    bg = ImageEnhance.Color(bg).enhance(0.0)
-    bg = ImageEnhance.Brightness(bg).enhance(0.45)
-    return bg
+    return Image.open(os.path.join(ROOT, 'graphics', 'option_bg.bmp')).convert('RGB').crop((0, 0, 240, 160))
 
 
 def centered(font, image, text, y, body=WHITE, shadow=BLACK, cx=120):
@@ -51,15 +48,19 @@ def screen_record(font, small, empty=False):
     if empty:
         centered(font, img, '아직 기록이 없습니다.', 82, GRAY)
     else:
-        centered(font, img, '+27  오딧세이 소드', 56, (255, 90, 90))
-        rows = [('강화', '212'), ('성공', '98'), ('실패', '114'), ('깨뜨린 검', '14'), ('방지권', '9'), ('번 돈', '$64K')]
-        for i, (k, v) in enumerate(rows):
-            col, row = i % 2, i // 2
-            x0 = 20 + col * 108
-            y = 84 + row * 18
-            font.draw(img, k, x0, y, (200, 200, 200), BLACK)
-            font.draw(img, v, x0 + 96, y, WHITE, BLACK, 'right')
-        small.draw(img, '새 최고 단계에 닿으면 자동 기록', 120 - small.width('새 최고 단계에 닿으면 자동 기록') // 2, 132, GRAY, BLACK)
+        centered(font, img, '+27  오딧세이 소드', 54, (255, 90, 90))
+        # 줄 간격 16px 균등: 강화/성공, 실패/깨뜨린 검, 방지권, 최고 소지금 (금액은 인게임 돈처럼 노란색 전체 금액)
+        rows = [(('강화', '212'), ('성공', '98')), (('실패', '114'), ('깨뜨린 검', '14')), (('방지권', '9'), None)]
+        for r, pair in enumerate(rows):
+            y = 76 + r * 16
+            for c, item in enumerate(pair):
+                if item:
+                    x0 = 20 + c * 108
+                    font.draw(img, item[0], x0, y, (200, 200, 200), BLACK)
+                    font.draw(img, item[1], x0 + 96, y, WHITE, BLACK, 'right')
+        y = 76 + 3 * 16
+        font.draw(img, '최고 소지금', 20, y, (200, 200, 200), BLACK)
+        font.draw(img, '$119,994', 220, y, (248, 216, 48), (232, 104, 8), 'right')
     font.draw(img, 'B 돌아가기', 6, 150, WHITE, BLACK)
     return img
 
