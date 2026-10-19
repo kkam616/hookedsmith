@@ -690,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.4";
+constexpr const char* game_version = "v0.6.5";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -4311,6 +4311,7 @@ bool run_record_screen_once()
     bn::vector<bn::sprite_ptr, 40> value_sprites;
     bn::vector<bn::sprite_ptr, 24> money_sprites;
     bn::vector<bn::sprite_ptr, 8> band_sprites;
+    bn::optional<bn::sprite_ptr> band_icon;
     bn::vector<bn::sprite_ptr, 32> hint_sprites;
 
     if(best.valid)
@@ -4333,16 +4334,17 @@ bool run_record_screen_once()
             right_generator.generate(-4 + column * 108, y, values[index], value_sprites);
         }
 
-        // 시간대: 그 기록이 나온 때 (낮 / 노을 / 밤). 방지권 줄의 빈 칸(오른쪽)에 둔다. 예전 기록은 "-"
-        constexpr const char* band_names[3] = { "낮", "노을", "밤" };
+        // 시간대: 그 기록이 나온 때. 방지권 줄의 빈 칸(오른쪽)에 시간대 아이콘(낮 해 / 노을 지평선의 해 / 밤 달과 별)을 둔다. 예전 기록은 "-"
         left_generator.generate(8, 28, "시간대", label_sprites);
-        right_generator.generate(104, 28, best.band >= 0 ? band_names[best.band] : "-", band_sprites);
 
         if(best.band >= 0)
         {
-            bn::sprite_palette_ptr band_palette = create_tinted_font_palette(
-                best.band == 0 ? bn::color(31, 26, 12) : best.band == 1 ? bn::color(31, 14, 6) : bn::color(14, 20, 31));
-            set_sprites_palette(band_sprites, band_palette);
+            const bn::sprite_item* band_items[3] = { &bn::sprite_items::gallery_icon_0, &bn::sprite_items::gallery_icon_1, &bn::sprite_items::gallery_icon_2 };
+            band_icon = band_items[best.band]->create_sprite(95, 28);       // 메달(18x18)의 가운데가 줄 가운데, 오른쪽 끝(x 104)에 붙는다
+        }
+        else
+        {
+            right_generator.generate(104, 28, "-", band_sprites);
         }
 
         // 최고 소지금: 한 줄을 통째로 쓴다 (가장 많이 가졌던 금액, 시작 자금부터)
