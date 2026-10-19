@@ -58,6 +58,10 @@
 #include "bn_sprite_items_gallery_thumb_5.h"
 #include "bn_sprite_items_gallery_locked.h"
 #include "bn_sprite_items_menu_arrow.h"
+#include "bn_sprite_items_merchant.h"
+#include "bn_regular_bg_items_merchant_room.h"
+#include "bn_regular_bg_items_merchant_room_coins.h"
+#include "bn_regular_bg_items_merchant_photo.h"
 #include "bn_sprite_items_gallery_icon_0.h"
 #include "bn_sprite_items_gallery_icon_1.h"
 #include "bn_sprite_items_gallery_icon_2.h"
@@ -686,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.7";
+constexpr const char* game_version = "v0.6.0";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -964,6 +968,7 @@ enum class forge_exit
     RECIPE,     // SELECT 도움말에서 START: 레시피 (낡은 종이에 적힌 단계별 강화표)
     THIEF,      // 밤에 도둑이 들어 창고의 검(없으면 돈)을 훔쳐 간다
     ENDING,     // +29에서 A: 엔딩 컷 (시간대별) + HARD 해금 안내
+    MERCHANT,   // 노을에 검을 팔 때 수상한 상인이 나타나 판 금액만큼 더 준다
 };
 
 constexpr int hammer_frames = 24;
@@ -1294,6 +1299,21 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             if(eco.thief_ready() && random.get_int(100) < hs::thief_chance_pct)
             {
                 thief_pending = true;
+            }
+        }
+    };
+
+    // 수상한 상인 이벤트: 노을에 검을 팔 때마다 한 번 판정하고, 걸리면 결과 메시지가 끝난 뒤(IDLE) 상인이 나타난다
+    bool merchant_pending = false;
+    auto roll_merchant = [&]()
+    {
+        if(hs::current_time_band() == hs::time_band::SUNSET)
+        {
+            eco.note_sunset_sale();
+
+            if(eco.merchant_ready() && random.get_int(100) < hs::merchant_chance_pct)
+            {
+                merchant_pending = true;
             }
         }
     };
@@ -2478,6 +2498,18 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                 }
             }
 
+            // 수상한 상인: 판매 결과 메시지가 끝난 뒤
+            if(merchant_pending && message_timer == 0 && ! help_mode)
+            {
+                merchant_pending = false;
+
+                if(eco.merchant_ready())
+                {
+                    fade_screen(false);
+                    return forge_exit::MERCHANT;
+                }
+            }
+
             if(! help_mode && ! reveal_hold)
             {
                 update_idle_sword();
@@ -2584,6 +2616,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     message_text(sold_line);
                     start_sell_effect(sold_level, money_before, amount);
                     roll_thief();               // 밤이면 도둑 판정 (판매 한 번)
+                    roll_merchant();            // 노을이면 수상한 상인 판정 (판매 한 번)
                 }
             }
             else if(bn::keypad::l_pressed() || bn::keypad::r_pressed())
@@ -5218,6 +5251,217 @@ void run_thief_event(hs::economy& eco, bn::seed_random& random)
     bn::blending::set_transparency_alpha(1);
 }
 
+// ─── 수상한 상인 이벤트 (노을, 판매할 때) ───────────────────────────────────
+// 노을 방 창이 열리고 상인이 그림자(실루엣)로 웅크려 살금살금 걸어 들어오다 색이 돌아오고, 좌우를 살핀다 → A → 사진이 번쩍이며
+// "쉿... 비밀이오." → A → 금화 더미 방에서 주머니를 내밀며 "대금을 두 배로 쳐 주었다!" + 금액. 도둑 이벤트와 같은 틀이다.
+// 소리는 아직 임시: 알림 sfx_event, 웃음 sfx_thief, 금화 sfx_sell_2, 장면 음악 bgm_event_thief (전용 소리가 생기면 바꾼다).
+constexpr int merchant_walk_start = 24;
+constexpr int merchant_walk_frames = 56;
+constexpr int merchant_silhouette_frames = 28;          // 이 동안은 검은 그림자, 그 뒤 16프레임에 걸쳐 색이 돌아온다
+constexpr int merchant_look_frames = 18;                // 좌우를 살피는 주기
+constexpr int merchant_ready_after_walk = 30;
+constexpr int merchant_message_delay = 14;
+
+void run_merchant_event(hs::economy& eco)
+{
+    const int32_t bonus = eco.pay_merchant();      // 방금 판 금액만큼 더 받는다
+
+    bn::sprite_text_generator center_generator(hs::font_outline);
+    center_generator.set_center_alignment();
+
+    bn::regular_bg_ptr background = forge_bg_item(hs::current_time_band()).create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr room = bn::regular_bg_items::merchant_room.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr room_coins = bn::regular_bg_items::merchant_room_coins.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr photo = bn::regular_bg_items::merchant_photo.create_bg(title_bg_x, title_bg_y);
+    room.set_priority(1);
+    room_coins.set_priority(1);
+    photo.set_priority(1);
+    room_coins.set_visible(false);
+    photo.set_visible(false);
+
+    bn::sprite_ptr anvil = bn::sprite_items::anvil.create_sprite(0, anvil_y);
+    anvil.set_bg_priority(2);
+
+    bn::sprite_ptr merchant = bn::sprite_items::merchant.create_sprite(thief_left_x, thief_y, 0);
+    merchant.set_bg_priority(0);
+    merchant.set_visible(false);
+    merchant.set_blending_enabled(true);
+    bn::sprite_palette_ptr merchant_palette = merchant.palette();
+    merchant_palette.set_fade(bn::color(3, 2, 6), 1);           // 처음에는 검은 그림자
+
+    bn::sprite_palette_ptr gold_palette = create_two_tone_font_palette(gold_body_color, gold_outline_color);
+    bn::vector<bn::sprite_ptr, 40> message_sprites;
+    bn::vector<bn::sprite_ptr, 16> bonus_sprites;
+
+    auto show_message = [&](const bn::string_view& first, const bn::string_view& second, const bn::string_view& third)
+    {
+        message_sprites.clear();
+        bonus_sprites.clear();
+        center_generator.generate(0, cat_message_y, first, message_sprites);
+        center_generator.generate(0, cat_message_y + cat_message_step, second, message_sprites);
+
+        if(! third.empty())
+        {
+            center_generator.generate(0, cat_message_y + cat_message_step * 2, third, bonus_sprites);
+            set_sprites_palette(bonus_sprites, gold_palette);
+        }
+
+        for(bn::sprite_ptr& sprite : message_sprites)
+        {
+            sprite.set_bg_priority(0);
+        }
+
+        for(bn::sprite_ptr& sprite : bonus_sprites)
+        {
+            sprite.set_bg_priority(0);
+        }
+    };
+
+    auto set_flash = [&](bn::fixed level)
+    {
+        bn::bg_palettes::set_fade(bn::color(31, 31, 31), level);
+        bn::sprite_palettes::set_fade(bn::color(31, 31, 31), level);
+    };
+
+    bn::music_items::bgm_event_thief.play(bn::fixed(0.9));
+    fade_screen(true);
+
+    bn::sprite_text_generator arrow_generator(hs::font);
+    arrow_generator.set_left_alignment();
+    bn::vector<bn::sprite_ptr, 1> arrow;
+    arrow_generator.generate(indicator_x, second_line_y, "▼", arrow);
+    arrow[0].set_bg_priority(0);
+    arrow[0].set_visible(false);
+
+    int page = 0;
+    int page_frame = 0;
+    int photo_countdown = -1;
+    int flash = 0;
+    int frame = 0;
+
+    while(true)
+    {
+        if(frame == 0)
+        {
+            bn::sound_items::sfx_event.play();      // 이벤트 발생 알림 (공용 소리)
+            flash = 8;
+        }
+
+        bool ready = false;
+
+        if(page == 0 && frame >= merchant_walk_start)
+        {
+            const int u = frame - merchant_walk_start;
+            merchant.set_visible(true);
+            bn::blending::set_transparency_alpha(u >= 12 ? bn::fixed(1) : bn::fixed(u) / 12);
+
+            // 그림자 → 색이 돌아온다
+            const int color_u = u - merchant_silhouette_frames;
+            merchant_palette.set_fade(bn::color(3, 2, 6), color_u <= 0 ? bn::fixed(1) : color_u >= 16 ? bn::fixed(0) : bn::fixed(1) - bn::fixed(color_u) / 16);
+
+            if(u < merchant_walk_frames)
+            {
+                merchant.set_x(thief_left_x + (thief_stop_x - thief_left_x) * u / merchant_walk_frames);
+                merchant.set_item(bn::sprite_items::merchant, (u / 8) % 4);
+            }
+            else
+            {
+                // 좌우를 살핀다 (뒤돌아봄)
+                merchant.set_x(thief_stop_x);
+                merchant.set_item(bn::sprite_items::merchant, 4);
+                merchant.set_horizontal_flip(((u - merchant_walk_frames) / merchant_look_frames) % 2 == 1);
+                ready = u >= merchant_walk_frames + merchant_ready_after_walk && photo_countdown < 0;
+            }
+        }
+        else if(page == 1)
+        {
+            if(photo_countdown > 0)
+            {
+                --photo_countdown;
+            }
+            else if(photo_countdown == 0)
+            {
+                photo_countdown = -1;
+                room.set_visible(false);
+                merchant.set_visible(false);
+                photo.set_visible(true);
+                flash = 8;
+                page_frame = 0;
+            }
+
+            if(photo_countdown < 0 && photo.visible())
+            {
+                if(page_frame == merchant_message_delay)
+                {
+                    show_message("쉿... 비밀이오.", "이건 덤이오...", "");
+                }
+
+                ready = page_frame >= merchant_message_delay + 12;
+            }
+        }
+        else
+        {
+            ready = page_frame >= 12;
+        }
+
+        arrow[0].set_visible(ready && (frame / indicator_blink_frames) % 2 == 0);
+
+        if(ready && bn::keypad::a_pressed())
+        {
+            if(page == 0)
+            {
+                page = 1;
+                page_frame = 0;
+                photo_countdown = sfx_latency_frames;
+                bn::sound_items::sfx_thief.play();      // 임시: 상인 웃음소리 전용 효과음이 생기면 바꾼다
+            }
+            else if(page == 1)
+            {
+                page = 2;
+                page_frame = 0;
+
+                // 금화 더미 방: 상인이 주머니를 내밀고 보상 메시지
+                photo.set_visible(false);
+                room_coins.set_visible(true);
+                merchant.set_visible(true);
+                merchant.set_horizontal_flip(false);
+                merchant.set_x(thief_stop_x);
+                merchant.set_item(bn::sprite_items::merchant, 5);
+                merchant_palette.set_fade(bn::color(3, 2, 6), 0);
+                bn::sound_items::sfx_sell_2.play();
+
+                bn::string<24> bonus_line("+");
+                bonus_line += format_money(bonus);
+                show_message("수상한 상인이 대금을", "두 배로 쳐 주었다!", bonus_line);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if(flash > 0)
+        {
+            set_flash(bn::fixed(flash) / 14);
+            --flash;
+
+            if(flash == 0)
+            {
+                set_flash(0);
+            }
+        }
+
+        ++frame;
+        ++page_frame;
+        bn::core::update();
+    }
+
+    set_flash(0);
+    fade_screen(false, true);
+    bn::music::stop();
+    bn::blending::set_transparency_alpha(1);
+}
+
 int main()
 {
     bn::core::init();
@@ -5326,6 +5570,11 @@ int main()
             case forge_exit::THIEF:
                 cut_forge_bgm();
                 run_thief_event(eco, random);
+                break;
+
+            case forge_exit::MERCHANT:
+                cut_forge_bgm();
+                run_merchant_event(eco);
                 break;
 
             default:

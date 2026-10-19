@@ -119,6 +119,12 @@ public:
     void note_night_action() { if(_thief_cooldown > 0) { --_thief_cooldown; } }
     thief_loss steal(bn::seed_random& random);
 
+    // 수상한 상인 (노을 판매): 방금 판 금액만큼 더 받는다. 쿨다운은 저장하지 않는다.
+    [[nodiscard]] bool merchant_ready() const { return _merchant_cooldown <= 0 && _last_sale > 0; }
+    void note_sunset_sale() { if(_merchant_cooldown > 0) { --_merchant_cooldown; } }
+    [[nodiscard]] int32_t last_sale() const { return _last_sale; }
+    int32_t pay_merchant();         // 더해진 금액 (소지금 상한에 걸리면 그만큼만)
+
     [[nodiscard]] bool can_sell() const { return row().sell_usd > 0; }
     int32_t sell();
 
@@ -180,6 +186,8 @@ private:
     int _cat_target = 0;
     int _tickets = 0;
     int _thief_cooldown = 0;
+    int _merchant_cooldown = 0;
+    int32_t _last_sale = 0;         // 마지막 판매 금액 (상인 이벤트용)
     run_stats _stats;
     bool _new_best = false;
     bn::array<int16_t, material_count> _materials = {};

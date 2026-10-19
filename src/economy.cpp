@@ -139,6 +139,7 @@ int32_t economy::sell()
 
     int32_t earned = row().sell_usd;
     _add_money(earned);
+    _last_sale = earned;
     _level = 0;
     return earned;
 }
@@ -353,6 +354,14 @@ bool economy::thief_has_loot() const
     }
 
     return int64_t(_money) * thief_money_pct / 100 >= 1;
+}
+
+int32_t economy::pay_merchant()
+{
+    const int32_t before = _money;
+    _add_money(_last_sale);
+    _merchant_cooldown = merchant_cooldown_sales;
+    return _money - before;
 }
 
 thief_loss economy::steal(bn::seed_random& random)
