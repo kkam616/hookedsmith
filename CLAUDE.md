@@ -28,7 +28,7 @@
 - EXTTOOL(빌드 전 자동 실행): `tools/make_font.py` → `make_cutscenes.py` → `make_swords.py`(검 그림 + 연출용 `fx` 그림) → `make_music.py`
 
 ## 빌드 / 실행
-- **일반+디버그 동시 빌드: PowerShell 도구에서** `& 'C:\Windows\System32\cmd.exe' /c 'tools\build_both.bat'` (`cmd`만 쓰면 msys의 cmd가 잡힌다). 결과: `hookedsmith.gba`(일반), `hookedsmith_debug.gba`(디버그, `build_debug/` 폴더를 따로 써서 섞이지 않고 저장 파일 `.sav`도 따로 생긴다). `.bat`은 ASCII만 쓴다(cmd가 시스템 코드 페이지로 읽음).
+- **일반+디버그 동시 빌드: PowerShell 도구에서** `& 'C:\Windows\System32\cmd.exe' /c 'tools\build_both.bat'` (`cmd`만 쓰면 msys의 cmd가 잡힌다). 결과: `hookedsmith.gba`(일반), `hookedsmith_debug.gba`(디버그, **빌드가 끝나면 `tools/copy_versioned.py`가 `hookedsmith_v0.6.3.gba`·`hookedsmith_debug_v0.6.3.gba`처럼 버전이 붙은 복사본도 만든다** — 버전은 `src/main.cpp`의 `game_version`, 이전 버전 복사본은 지운다. 저장 파일(.sav)은 ROM 이름을 따라가므로 버전 이름 ROM은 버전마다 따로 저장된다. 자동 시험 스크립트는 원래 이름 파일을 쓴다; `build_debug/` 폴더를 따로 써서 섞이지 않고 저장 파일 `.sav`도 따로 생긴다). `.bat`은 ASCII만 쓴다(cmd가 시스템 코드 페이지로 읽음).
 - 수동 빌드: `DEVKITARM=C:\devkitPro\devkitARM`, `DEVKITPRO=C:\devkitPro` 환경변수를 넣고 `C:\devkitPro\msys2\usr\bin\make.exe -j8`. 디버그는 `make -j8 TARGET=hookedsmith_debug BUILD=build_debug USERFLAGS=-DHS_DEBUG`.
 - **Bash 도구에서 `powershell -Command`로 빌드하지 말 것**: 다른 `python`이 잡혀 PIL 오류가 나고 Python 설치 관리자가 저장소 안에 `Python/`을 설치해 버린다. Bash 도구의 python으로 큰 파일을 고치다 쓰기 오류가 나기도 한다 → 파일 수정용 python 스크립트는 파일로 써서 PowerShell로 실행하는 편이 안전하다 (heredoc 이스케이프 문제도 피한다).
 - mGBA가 ROM을 열고 있으면 링크가 실패한다. 빌드 전에 mGBA를 모두 닫는다 (`Get-Process mGBA | Stop-Process`).

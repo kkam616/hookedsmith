@@ -48,7 +48,7 @@
 tools\build_both.bat
 ```
 
-결과로 `hookedsmith.gba`(일반)와 `hookedsmith_debug.gba`(디버그)가 생깁니다. 디버그 ROM은 HARD가 열려 있고 돈·재료 지급, 단계 점프, 시간대 강제 등 확인용 키가 있습니다. 자세한 환경 설정과 주의 사항은 [CLAUDE.md](CLAUDE.md)를 보세요.
+결과로 `hookedsmith.gba`(일반)와 `hookedsmith_debug.gba`(디버그)가 생기고, 버전이 붙은 복사본(`hookedsmith_v0.6.3.gba`, `hookedsmith_debug_v0.6.3.gba`)도 같이 만들어집니다. 디버그 ROM은 HARD가 열려 있고 돈·재료 지급, 단계 점프, 시간대 강제 등 확인용 키가 있습니다. 자세한 환경 설정과 주의 사항은 [CLAUDE.md](CLAUDE.md)를 보세요.
 
 에뮬레이터는 mGBA에서 확인했습니다. 시간대 기능은 카트리지 RTC를 쓰므로 mGBA에서 RTC를 켜야 낮 외의 시간대를 볼 수 있습니다.
 
