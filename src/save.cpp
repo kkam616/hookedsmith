@@ -280,6 +280,21 @@ void write_best(int level, const run_stats& stats)
     write_record(data);
 }
 
+void clear_best()
+{
+    record_data data = {};
+
+    if(! read_record(data))
+    {
+        return;
+    }
+
+    const uint8_t gallery = data.gallery;
+    data = {};
+    data.gallery = gallery;
+    write_record(data);
+}
+
 bool ending_seen(int index)
 {
     record_data data;

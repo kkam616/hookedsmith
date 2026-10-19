@@ -38,6 +38,7 @@ struct best_record
 
 [[nodiscard]] best_record read_best();
 void write_best(int level, const run_stats& stats);        // 새 최고 단계에 닿았을 때
+void clear_best();                                         // 최고 도달 기록만 지운다 (엔딩 도감은 그대로)
 
 // 엔딩 도감: 번호 = 모드*3 + 시간대 (모드 0 STORY / 1 HARD, 시간대 0 낮 / 1 노을 / 2 밤)
 [[nodiscard]] bool ending_seen(int index);

@@ -686,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.3";
+constexpr const char* game_version = "v0.5.4";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -4173,7 +4173,8 @@ option_choice run_option_menu()
 }
 
 // HARD 최고 도달 기록: 새 최고 단계에 닿는 순간 자동으로 남은 값 (그 순간까지의 강화·성공·실패·깨뜨린 검·방지권·번 돈)
-void run_record_screen()
+// 반환: true면 기록을 지웠다는 뜻이라 화면을 다시 연다 ("아직 기록이 없습니다."로 바뀐다)
+bool run_record_screen_once()
 {
     bn::regular_bg_ptr background = option_background();
 
@@ -4241,16 +4242,53 @@ void run_record_screen()
     set_sprites_palette(hint_sprites, gray);
 
     text_line footer_text(left_generator, -114, 70);
-    footer_text.set_text("B 돌아가기");
+    constexpr const char* default_hint = "START 기록 지우기  B 돌아가기";
+    footer_text.set_text(best.valid ? default_hint : "B 돌아가기");
 
+    bool confirming = false;
     fade_screen(true);
 
-    while(! bn::keypad::b_pressed())
+    while(true)
     {
+        if(confirming)
+        {
+            if(bn::keypad::a_pressed())
+            {
+                play_select();
+                hs::save::clear_best();
+                fade_screen(false);
+                return true;
+            }
+            else if(bn::keypad::b_pressed() || bn::keypad::start_pressed())
+            {
+                confirming = false;
+                footer_text.set_text(default_hint);
+            }
+        }
+        else if(bn::keypad::b_pressed())
+        {
+            break;
+        }
+        else if(best.valid && bn::keypad::start_pressed())
+        {
+            play_select();
+            confirming = true;
+            footer_text.set_text("정말 지울까요?  A 예  B 아니오");
+        }
+
         bn::core::update();
     }
 
     fade_screen(false);
+    return false;
+}
+
+void run_record_screen()
+{
+    while(run_record_screen_once())
+    {
+        bn::core::update();         // 지운 뒤에는 이전 화면의 타일을 비우고 빈 기록 화면을 다시 연다
+    }
 }
 
 // 엔딩 도감: STORY / HARD 두 줄 × 낮·노을·밤. 맨 아래 시간대 아이콘이 열 이름이다. 본 엔딩만 그림이 보이고 A로 크게 본다.
