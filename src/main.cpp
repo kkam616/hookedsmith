@@ -670,7 +670,7 @@ constexpr int menu_label_y = 51;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.1.0";
+constexpr const char* game_version = "v0.2.0";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {

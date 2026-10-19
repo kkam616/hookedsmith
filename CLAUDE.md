@@ -6,6 +6,7 @@
 
 ## 문서 (이 파일이 핸드오프, 나머지는 필요할 때 읽는다)
 - **`docs/GAME_MANUAL.md`** — 구현된 시스템 전체 매뉴얼(규칙·확률 표·화면·연출·미정). 시스템을 바꾸면 같이 고친다. 표(`<!-- AUTO:... -->`)는 `python -B tools/make_manual.py`가 `include/economy_data.h`에서 다시 만든다 (손으로 고치지 말 것).
+- `CHANGELOG.md` — 버전별 변경 이력 (버전 번호는 `src/main.cpp`의 `game_version`, 올릴 때 같이 고친다)
 - `docs/ECONOMY_SPEC.md` — 원작 수치 CSV와 경제 규칙(구현 스펙)
 - `docs/DESIGN_NOTES.md` — 용어·스토리·데이터 취급 원칙
 - 기획 문서(웹): https://claude.ai/code/artifact/73958658-7f11-4c5d-9b9d-c0411b66512b
