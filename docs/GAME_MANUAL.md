@@ -365,6 +365,8 @@ STORY·HARD 모두 한 표에 둔다. 원작 값이라 +25→26 성공률이 오
 - **엔딩은 (모드 × 시간대) 6종**이다: 번호 = 모드*3 + 시간대 (STORY 0~2, HARD 3~5). 그림은 임시(STORY: 문 앞·징수관·포고문, HARD: 단검·모루·파산)이고 문구도 임시다. `ending_background`와 `ending_lines`(main.cpp)만 바꾸면 되고, Gallery 썸네일은 `tools/make_gallery_assets.py`의 `THUMBS` 원본을 바꿔 다시 실행한다. **HARD 엔딩에는 해금 안내가 없다.** 엔딩을 보면 엔딩 도감에 기록된다.
 
 ### 17-5. OPTION 메뉴 (타이틀 > OPTION)
+**메뉴 화살표:** 시작 화면, 일시정지, OPTION에서는 고른 줄 왼쪽에 노란 도트 화살표(`menu_arrow` 스프라이트, 영문 대문자 높이에 맞춤)가 **고정**되고 고른 글자만 위아래로 2px 흔들린다.
+
 작업대 위 검 설계도 그림(`assets/graphics/menu_bg/option_bg_source.png` → `tools/make_option_bg.py` → `graphics/option_bg.bmp`, 흑백 32단계)을 깔고 외곽선 글자를 쓴다. ↑↓ 고르고 A, B로 돌아간다.
 | 항목 | 내용 |
 |---|---|

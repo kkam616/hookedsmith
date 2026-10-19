@@ -57,6 +57,7 @@
 #include "bn_sprite_items_gallery_thumb_4.h"
 #include "bn_sprite_items_gallery_thumb_5.h"
 #include "bn_sprite_items_gallery_locked.h"
+#include "bn_sprite_items_menu_arrow.h"
 #include "bn_sprite_items_gallery_icon_0.h"
 #include "bn_sprite_items_gallery_icon_1.h"
 #include "bn_sprite_items_gallery_icon_2.h"
@@ -685,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.0";
+constexpr const char* game_version = "v0.5.1";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -3314,6 +3315,33 @@ bn::string<48> slot_label(int slot)
     return line;
 }
 
+// 노란 도트 화살표 (tools/make_menu_arrow.py): 고른 줄 왼쪽에 고정되고, 고른 글자만 흔들린다.
+// 8x16 그림이라 글자 줄(가운데 정렬, 글자 폭 text_width, 가운데 높이 y)의 가운데에 그대로 맞는다.
+class menu_arrow
+{
+
+public:
+    menu_arrow() :
+        _sprite(bn::sprite_items::menu_arrow.create_sprite(0, 0))
+    {
+        _sprite.set_visible(false);
+    }
+
+    void show(int text_width, int y)
+    {
+        _sprite.set_position(-text_width / 2 - 11, y);
+        _sprite.set_visible(true);
+    }
+
+    void hide()
+    {
+        _sprite.set_visible(false);
+    }
+
+private:
+    bn::sprite_ptr _sprite;
+};
+
 // 슬롯 3줄(with_new면 맨 위에 "NEW GAME" 한 줄 더)을 그리고, 고른 줄만 위아래로 흔든다.
 // 줄 번호는 with_new일 때 0 = NEW GAME, 1~3 = 슬롯 1~3, 아니면 0~2 = 슬롯 1~3.
 class slot_list
@@ -3332,12 +3360,14 @@ public:
     }
 
     [[nodiscard]] int line_count() const { return _first_slot_line + (_with_slots ? hs::save::slot_count : 0); }
+    [[nodiscard]] int line_width(int line) const { return _widths[line]; }       // 화살표 위치용 글자 폭
 
     void refresh()
     {
         if(_first_slot_line > 0)
         {
             _lines[0].clear();
+            _widths[0] = _generator.width("NEW GAME");
             _generator.generate(0, _top_y, "NEW GAME", _lines[0]);
         }
 
@@ -3345,7 +3375,9 @@ public:
         {
             bn::ivector<bn::sprite_ptr>& line = _lines[_first_slot_line + slot];
             line.clear();
-            _generator.generate(0, _top_y + (_first_slot_line + slot) * _step_y, slot_label(slot), line);
+            const bn::string<48> label = slot_label(slot);
+            _widths[_first_slot_line + slot] = _generator.width(label);
+            _generator.generate(0, _top_y + (_first_slot_line + slot) * _step_y, label, line);
         }
     }
 
@@ -3379,6 +3411,7 @@ private:
     int _step_y;
     int _first_slot_line;
     bool _with_slots;
+    int _widths[1 + hs::save::slot_count] = {};
     bn::vector<bn::sprite_ptr, 40> _lines[1 + hs::save::slot_count];
 };
 
@@ -3447,6 +3480,7 @@ pause_choice run_pause(const hs::economy& eco)
     slot_list slots(center_generator, top_y, step_y);
     slots.set_visible(false);
     text_line footer_text(left_generator, -114, 68);
+    menu_arrow arrow;
 
     bool slot_screen = false;
     bool confirming = false;     // 덮어쓰기 확인 중
@@ -3494,6 +3528,16 @@ pause_choice run_pause(const hs::economy& eco)
     while(true)
     {
         ++frame;
+
+        // 화살표는 고른 줄 왼쪽에 고정 (글자만 흔들린다)
+        if(slot_screen && ! quit_confirming)
+        {
+            arrow.show(slots.line_width(slot), top_y + slot * step_y);
+        }
+        else
+        {
+            arrow.show(center_generator.width(item_names[selected]), top_y + selected * step_y);
+        }
 
         if(quit_confirming)
         {
@@ -3665,6 +3709,7 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
     slot_list list(center_generator, top_y, step_y, true, ! hard);
     text_line footer_text(left_generator, -114, 68);
 
+    menu_arrow arrow;
     bn::optional<bn::sprite_palette_ptr> gray_palette;
     bn::vector<bn::sprite_ptr, 24> hard_notice_sprites;
 
@@ -3728,6 +3773,7 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
             footer_text.set_text(default_hint);
         }
 
+        arrow.show(list.line_width(selected), top_y + selected * step_y);
         list.animate(selected, int(frame));
         bn::core::update();
     }
@@ -4063,8 +4109,6 @@ option_choice run_option_menu()
     bn::sprite_text_generator left_generator(hs::font_outline);
     left_generator.set_left_alignment();
 
-    bn::sprite_palette_ptr gold = create_tinted_font_palette(bn::color(31, 26, 12));
-
     bn::vector<bn::sprite_ptr, 8> title_sprites;
     center_generator.generate(0, -44, "OPTION", title_sprites);
 
@@ -4075,12 +4119,11 @@ option_choice run_option_menu()
         center_generator.generate(0, top_y + index * step_y, item_names[index], item_sprites[index]);
     }
 
-    bn::vector<bn::sprite_ptr, 2> marker;
+    menu_arrow arrow;
     text_line footer_text(left_generator, -114, 70);
     footer_text.set_text("A 선택  B 돌아가기");
 
     int selected = 0;
-    int styled = -1;
     int frame = 0;
 
     fade_screen(true);
@@ -4113,13 +4156,7 @@ option_choice run_option_menu()
             return option_choice(selected);
         }
 
-        if(selected != styled)
-        {
-            styled = selected;
-            marker.clear();
-            left_generator.generate(-center_generator.width(item_names[selected]) / 2 - 18, top_y + selected * step_y, "▶", marker);
-            set_sprites_palette(marker, gold);
-        }
+        arrow.show(center_generator.width(item_names[selected]), top_y + selected * step_y);       // 화살표는 고정
 
         const int bob = (frame / 8) % 2 == 1 ? -2 : 0;
 
@@ -4129,11 +4166,6 @@ option_choice run_option_menu()
             {
                 sprite.set_y(top_y + index * step_y + (index == selected ? bob : 0));
             }
-        }
-
-        for(bn::sprite_ptr& sprite : marker)
-        {
-            sprite.set_y(top_y + selected * step_y + bob);
         }
 
         bn::core::update();
@@ -4388,7 +4420,6 @@ void run_language_screen()
     bn::sprite_text_generator small_generator(hs::font_small);
     small_generator.set_center_alignment();
 
-    bn::sprite_palette_ptr gold = create_tinted_font_palette(bn::color(31, 26, 12));
     bn::sprite_palette_ptr gray = create_tinted_font_palette(bn::color(18, 18, 18));
 
     bn::vector<bn::sprite_ptr, 12> title_sprites;
@@ -4405,9 +4436,8 @@ void run_language_screen()
     small_generator.generate(0, 32, "(준비 중)", soon_sprites);
     set_sprites_palette(soon_sprites, gray);
 
-    bn::vector<bn::sprite_ptr, 2> marker;
-    left_generator.generate(-center_generator.width("한국어") / 2 - 18, -6, "▶", marker);
-    set_sprites_palette(marker, gold);
+    menu_arrow arrow;
+    arrow.show(center_generator.width("한국어"), -6);
 
     text_line footer_text(left_generator, -114, 70);
     footer_text.set_text("B 돌아가기");
