@@ -3772,7 +3772,8 @@ void wrap_dialogue(const bn::sprite_text_generator& generator, const char* text,
               "Dialogue too long: ", text);
 }
 
-void run_opening_cutscene()
+// 컷씬 틀: 위쪽 그림 + 아래쪽 대사 박스. 장면마다 A로 대사를 넘기고 장면이 끝나면 페이드. 음악은 없으면 nullptr (마지막 페이드와 함께 끈다)
+void run_cutscene(bn::span<const cutscene_scene> scenes, const bn::music_item* music)
 {
     bn::sprite_text_generator left_generator(hs::font);
     left_generator.set_left_alignment();
@@ -3794,10 +3795,14 @@ void run_opening_cutscene()
     indicator.set_visible(false);
 
     // 컷씬 음악 (assets/audio/story_chiptune_sad.wav): 컷씬이 끝나 인게임으로 넘어갈 때까지 반복, 마지막 장면의 페이드와 함께 끈다
-    bn::music_items::story_chiptune_sad.play(1);
+    if(music)
+    {
+        music->play(1);
+    }
+
     int scene_number = 0;
 
-    for(const cutscene_scene& scene : opening_scenes)
+    for(const cutscene_scene& scene : scenes)
     {
         ++scene_number;
         bn::regular_bg_ptr scene_bg = scene.bg.create_bg(title_bg_x, title_bg_y);
@@ -3836,10 +3841,32 @@ void run_opening_cutscene()
             indicator.set_visible(false);
         }
 
-        fade_screen(false, scene_number == int(sizeof(opening_scenes) / sizeof(opening_scenes[0])));
+        fade_screen(false, music && scene_number == scenes.size());
     }
 
-    bn::music::stop();
+    if(music)
+    {
+        bn::music::stop();
+    }
+}
+
+void run_opening_cutscene()
+{
+    run_cutscene(opening_scenes, &bn::music_items::story_chiptune_sad);
+}
+
+// 파산 컷: 스미스의 독백 한 줄 (그림은 임시로 모루 장면. 새 그림이 오면 bankrupt_scenes의 bg만 바꾼다)
+constexpr dialogue_line bankrupt_lines[] = {
+    { "스미스", "돈이 다 떨어졌다..." },
+};
+
+constexpr cutscene_scene bankrupt_scenes[] = {
+    { bn::regular_bg_items::scene2_anvil, bankrupt_lines },
+};
+
+void run_bankrupt_cutscene()
+{
+    run_cutscene(bankrupt_scenes, nullptr);
 }
 
 }
@@ -4541,6 +4568,7 @@ int main()
 
             case forge_exit::GAME_OVER:
                 cut_forge_bgm();
+                run_bankrupt_cutscene();        // 스미스의 독백 → 새 GAME OVER 화면
                 run_game_over();
                 quit = true;        // 타이틀로
                 break;
