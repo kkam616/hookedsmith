@@ -60,6 +60,7 @@
 #include "bn_sprite_items_menu_arrow.h"
 #include "bn_sprite_items_merchant.h"
 #include "bn_regular_bg_items_merchant_room.h"
+#include "bn_regular_bg_items_merchant_room_coins.h"
 #include "bn_regular_bg_items_merchant_photo.h"
 #include "bn_sprite_items_gallery_icon_0.h"
 #include "bn_sprite_items_gallery_icon_1.h"
@@ -689,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.1";
+constexpr const char* game_version = "v0.6.2";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -5252,28 +5253,33 @@ void run_thief_event(hs::economy& eco, bn::seed_random& random)
 
 // ─── 수상한 상인 이벤트 (노을, 판매할 때) ───────────────────────────────────
 // 노을 방 창이 열리고 상인이 그림자(실루엣)로 웅크려 살금살금 걸어 들어오다 색이 돌아오고, 좌우를 살핀다 → A → 사진이 번쩍이며
-// "쉿... 비밀이오." → A → **같은 사진 그대로** "대금을 두 배로 쳐 주었다!" + 금액 → A → 끝. 도둑·고양이 이벤트와 같은 틀이다
-// (마지막 페이지에도 장면을 새로 바꾸지 않고 사진 위의 메시지만 바꾼다).
+// 받침대에 돈뭉치를 내려놓는다 (도둑이 검을 집는 것과 같은 자리: 방이 금화 더미 방으로 바뀌고 상인은 주머니를 내민 모습) → A →
+// 사진이 번쩍이며 "쉿... 비밀이오." → A → **같은 사진 그대로** "대금의 절반을 더 얹어 주었다!" + 금액 → A → 끝.
+// 도둑·고양이 이벤트와 같은 틀이다 (마지막 페이지에도 장면을 새로 바꾸지 않고 사진 위의 메시지만 바꾼다).
 // 소리는 아직 임시: 알림 sfx_event, 웃음 sfx_thief, 금화 sfx_sell_2, 장면 음악 bgm_event_thief (전용 소리가 생기면 바꾼다).
 constexpr int merchant_walk_start = 24;
 constexpr int merchant_walk_frames = 56;
 constexpr int merchant_silhouette_frames = 28;          // 이 동안은 검은 그림자, 그 뒤 16프레임에 걸쳐 색이 돌아온다
 constexpr int merchant_look_frames = 18;                // 좌우를 살피는 주기
-constexpr int merchant_ready_after_walk = 30;
+constexpr int merchant_look_total = 36;                 // 좌우를 살피는 시간 (두 번)
+constexpr int merchant_ready_after_drop = 24;           // 돈뭉치를 내려놓은 뒤 A를 받기까지
 constexpr int merchant_message_delay = 14;
 
 void run_merchant_event(hs::economy& eco)
 {
-    const int32_t bonus = eco.pay_merchant();      // 방금 판 금액만큼 더 받는다
+    const int32_t bonus = eco.pay_merchant();      // 방금 판 금액의 50%를 더 받는다
 
     bn::sprite_text_generator center_generator(hs::font_outline);
     center_generator.set_center_alignment();
 
     bn::regular_bg_ptr background = forge_bg_item(hs::current_time_band()).create_bg(title_bg_x, title_bg_y);
     bn::regular_bg_ptr room = bn::regular_bg_items::merchant_room.create_bg(title_bg_x, title_bg_y);
+    bn::regular_bg_ptr room_coins = bn::regular_bg_items::merchant_room_coins.create_bg(title_bg_x, title_bg_y);
     bn::regular_bg_ptr photo = bn::regular_bg_items::merchant_photo.create_bg(title_bg_x, title_bg_y);
     room.set_priority(1);
+    room_coins.set_priority(1);
     photo.set_priority(1);
+    room_coins.set_visible(false);
     photo.set_visible(false);
 
     bn::sprite_ptr anvil = bn::sprite_items::anvil.create_sprite(0, anvil_y);
@@ -5330,6 +5336,7 @@ void run_merchant_event(hs::economy& eco)
     arrow[0].set_bg_priority(0);
     arrow[0].set_visible(false);
 
+    const int drop_frame = merchant_walk_start + merchant_walk_frames + merchant_look_total;
     int page = 0;
     int page_frame = 0;
     int photo_countdown = -1;
@@ -5361,13 +5368,27 @@ void run_merchant_event(hs::economy& eco)
                 merchant.set_x(thief_left_x + (thief_stop_x - thief_left_x) * u / merchant_walk_frames);
                 merchant.set_item(bn::sprite_items::merchant, (u / 8) % 4);
             }
-            else
+            else if(frame < drop_frame)
             {
                 // 좌우를 살핀다 (뒤돌아봄)
                 merchant.set_x(thief_stop_x);
                 merchant.set_item(bn::sprite_items::merchant, 4);
                 merchant.set_horizontal_flip(((u - merchant_walk_frames) / merchant_look_frames) % 2 == 1);
-                ready = u >= merchant_walk_frames + merchant_ready_after_walk && photo_countdown < 0;
+            }
+            else
+            {
+                // 받침대에 돈뭉치를 내려놓는다: 방이 금화 더미 방으로 바뀌고 상인은 주머니를 내민 모습 (도둑이 검을 집는 것과 같은 자리)
+                if(frame == drop_frame)
+                {
+                    room.set_visible(false);
+                    room_coins.set_visible(true);
+                    bn::sound_items::sfx_sell_0.play();         // 임시: 동전 몇 닢
+                }
+
+                merchant.set_horizontal_flip(false);
+                merchant.set_x(thief_stop_x + 6);
+                merchant.set_item(bn::sprite_items::merchant, 5);
+                ready = frame >= drop_frame + merchant_ready_after_drop && photo_countdown < 0;
             }
         }
         else if(page == 1)
@@ -5379,7 +5400,7 @@ void run_merchant_event(hs::economy& eco)
             else if(photo_countdown == 0)
             {
                 photo_countdown = -1;
-                room.set_visible(false);
+                room_coins.set_visible(false);
                 merchant.set_visible(false);
                 photo.set_visible(true);
                 flash = 8;
@@ -5422,7 +5443,7 @@ void run_merchant_event(hs::economy& eco)
 
                 bn::string<24> bonus_line("+");
                 bonus_line += format_money(bonus);
-                show_message("수상한 상인이 대금을", "두 배로 쳐 주었다!", bonus_line);
+                show_message("수상한 상인이 대금의", "절반을 더 얹어 주었다!", bonus_line);
             }
             else
             {

@@ -119,7 +119,7 @@ public:
     void note_night_action() { if(_thief_cooldown > 0) { --_thief_cooldown; } }
     thief_loss steal(bn::seed_random& random);
 
-    // 수상한 상인 (노을 판매): 방금 판 금액만큼 더 받는다. 쿨다운은 저장하지 않는다.
+    // 수상한 상인 (노을 판매): 방금 판 금액의 merchant_bonus_pct(50)%를 더 받는다. 쿨다운은 저장하지 않는다.
     [[nodiscard]] bool merchant_ready() const { return _merchant_cooldown <= 0 && _last_sale > 0; }
     void note_sunset_sale() { if(_merchant_cooldown > 0) { --_merchant_cooldown; } }
     [[nodiscard]] int32_t last_sale() const { return _last_sale; }

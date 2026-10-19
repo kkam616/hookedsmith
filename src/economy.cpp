@@ -359,7 +359,7 @@ bool economy::thief_has_loot() const
 int32_t economy::pay_merchant()
 {
     const int32_t before = _money;
-    _add_money(_last_sale);
+    _add_money(int32_t(int64_t(_last_sale) * merchant_bonus_pct / 100));
     _merchant_cooldown = merchant_cooldown_sales;
     return _money - before;
 }

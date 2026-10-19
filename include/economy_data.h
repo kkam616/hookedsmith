@@ -222,8 +222,10 @@ constexpr int thief_cooldown_actions = 2;
 constexpr int thief_chance_pct = 4;
 constexpr int thief_cooldown_actions = 20;           // 다녀간 뒤 밤에 강화·판매를 이만큼 해야 다시 올 수 있다
 #endif
-// 수상한 상인 이벤트 (노을에만): 노을(16~21시)에 검을 판매할 때마다 낮은 확률로 판정한다. 방금 판 금액의 100%를 더 준다 (상한 없음, STORY·HARD 공통).
+// 수상한 상인 이벤트 (노을에만): 노을(16~21시)에 검을 판매할 때마다 낮은 확률로 판정한다. 방금 판 금액의 50%를 더 준다 (상한 없음, STORY·HARD 공통).
 // 다녀간 뒤 노을에 판매를 쿨다운만큼 해야 다시 올 수 있다 (저장 안 함). 디버그 빌드는 바로 확인하도록 확률 100%·쿨다운 짧게.
+constexpr int merchant_bonus_pct = 50;          // 방금 판 금액에 더해 주는 비율
+
 #ifdef HS_DEBUG
 constexpr int merchant_chance_pct = 100;
 constexpr int merchant_cooldown_sales = 2;
