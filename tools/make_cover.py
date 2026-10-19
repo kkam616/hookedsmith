@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REF = os.path.join(ROOT, 'assets', 'graphics', 'cover', 'gba_box_reference.webp')
 BODY = os.path.join(ROOT, 'build', 'cover', 'cover2.png')
 OUT = os.path.join(ROOT, 'build', 'cover', 'hookedsmith_cover.png')
-SPINE_W = 80          # 공식 이미지에서 오려 낼 띠 폭 (600px 중)
+SPINE_W = 76          # 공식 이미지에서 오려 낼 띠 폭 (600px 중, 76열부터는 흰 배경이라 포함하지 않는다)
 SIZE = 600
 
 
