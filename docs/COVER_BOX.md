@@ -22,6 +22,11 @@ HookedSmith의 GBA 박스 앞면(표지)을 만드는 작업의 현재 상태와
 - 사용자가 **고해상도 공식 표지 이미지**를 주면 왼쪽 띠만 오려서 그대로 합성하기로 했다 (띠 바깥의 퍼블리셔 로고·등급·일러스트는 쓰지 않음, 폭은 공식 비율 약 14%). 이미지는 `assets/graphics/cover/`에 넣기로 했다. 띠 세로 1000px 이상이면 충분.
 - 표지는 비공식 팬 게임 문구와 함께 개인 용도로 쓰는 것이 전제다.
 
+## 합성 방법 (구현됨)
+- `python -B tools/preview_cover2.py && python -B tools/make_cover.py` → `build/cover/hookedsmith_cover.png`(600x600) 와 `_x2.png`.
+- `tools/make_cover.py`: 공식 표지 이미지 `assets/graphics/cover/gba_box_reference.webp`(600x600, 사용자 제공)의 **왼쪽 띠 80px를 그대로 오려** 붙이고, 본문(띠 제외)을 520x600으로 줄여 붙인다. **이 참고 이미지는 남의 표지(Square Enix 일러스트·닌텐도 마크 포함)라서 저장소에 커밋하지 않는다** (로컬에만 둔다). 합성 결과 PNG도 공식 띠를 포함하므로 `build/`에만 두고 커밋하지 않는다.
+- 최종 일러스트가 오면 `tools/preview_cover2.py`의 `background()`를 그 그림으로 바꾼다.
+
 ## 이미 있는 것
 - `tools/preview_cover.py`: 시안 1 (게임 그림 재사용 3종 A 노을 / B 밤 / C 문 앞). `build/cover/sheet.png`. 부제 "한 번만 더..."는 **사용자가 빼기로 함**. (스크립트 안 `tagline`은 더 이상 안 쓴다.)
 - `tools/preview_cover2.py`: 시안 2. 코드로 그린 **임시 배경**(검, 모루, 마을 실루엣, 불씨) + 로고 + 왼쪽 GAME BOY ADVANCE 띠 + JAY'S LOFT 로고 + 아래 문구 띠. `build/cover/cover2.png`(1050x1040), `cover2_small.png`. 사용: `python -B tools/preview_cover2.py` (Windows Python, PIL).
