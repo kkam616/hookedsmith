@@ -686,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.4";
+constexpr const char* game_version = "v0.5.5";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -1015,16 +1015,17 @@ constexpr int message_second_y = 57;
 constexpr int message_frames = 90;      // 메시지가 이름 자리를 차지하는 시간
 
 // SELECT 도움말: 버튼을 누르고 있는 동안 위쪽 가운데 세 줄에 설명을 보여준다 (줄 폭 150px 이하, 한글 11자 안팎).
-// 순서: 강화(A), 판매(B), 상점(L), 화구(R), 창고(←), 잡화(↓).
+// 순서: 강화(A), 판매(B), 상점(L), 화구(R), 창고(←), 잡화(↓). 마지막 줄은 ↑ (시간대 아이콘 설명, 버튼 글자는 없다).
 constexpr int help_count = 6;
 constexpr const char* help_labels[help_count] = { "강화", "판매", "상점", "화구", "창고", "잡화" };
-constexpr const char* help_texts[help_count][3] = {
+constexpr const char* help_texts[help_count + 1][3] = {
     { "무기를 강화해 더", "강력한 검에", "도전하자." },
     { "강화 중인 무기를", "판매하여 돈을", "벌자." },
     { "돈을 사용해 강화에", "필요한 아이템을", "구매하자." },
     { "재료를 모아 특별한", "무기와 아이템을", "제작하자." },
     { "보유한 무기와", "아이템을 보관하고", "관리하자." },
     { "강화 실패로 얻은", "재료를 모으고", "관리하자." },
+    { "시간에 따라", "강화 확률이", "조정됩니다." },
 };
 
 forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string_view& first_message)
@@ -1317,6 +1318,11 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     text_line help_line_3(center_generator, 0, chance_y + 16);
     bn::vector<bn::sprite_ptr, 16> help_label_sprites;
     bn::optional<bn::sprite_ptr> recipe_icon;       // 도움말에서만 보이는 레시피 버튼 (잡화 ↓ 와 판매 B 사이)
+    bn::optional<bn::sprite_ptr> time_icon;         // 도움말에서만 보이는 컬러 시간대 아이콘 (배경에 구운 아이콘 자리, ↑ 로 설명)
+    bool time_icon_refresh = false;
+#ifdef HS_DEBUG
+    const char* debug_band_name = nullptr;
+#endif
     const button_layout* help_buttons[help_count] = {
         &upgrade_button, &sell_button, &shop_button, &furnace_button, &swords_button, &bag_button
     };
@@ -1452,6 +1458,13 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         }
     };
 
+    auto make_time_icon = [&]()
+    {
+        const bn::sprite_item* items[3] = { &bn::sprite_items::gallery_icon_0, &bn::sprite_items::gallery_icon_1, &bn::sprite_items::gallery_icon_2 };
+        time_icon = items[int(hs::current_time_band())]->create_sprite(-105, -25);      // 배경 아이콘(18x18, 화면 6,46)과 같은 자리
+        time_icon->set_z_order(1);
+    };
+
     auto set_help = [&](bool on)
     {
         idle_glint.reset();
@@ -1462,6 +1475,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
         help_line_3.set_text("");
         help_label_sprites.clear();
         recipe_icon.reset();
+        time_icon.reset();
+        time_icon_refresh = false;
 
         bn::fixed gray = on ? 1 : 0;
         background_palette->set_grayscale_intensity(gray);
@@ -1503,6 +1518,8 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             recipe_icon->set_z_order(1);
             center_generator.generate(0, 48, "레시피", help_label_sprites);
             center_generator.generate(0, 33, "START", help_label_sprites);
+
+            make_time_icon();
 
             // 판매·강화는 못 쓰는 상태여도 도움말에서는 컬러로 보여준다
             set_button_enabled(sell_icon_palette, sell_badge, true);
@@ -2431,18 +2448,26 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     return forge_exit::RECIPE;
                 }
 
+                if(time_icon_refresh)       // 아이콘을 지운 다음 프레임에 새로 만든다 (스프라이트 팔레트가 빠듯해서)
+                {
+                    time_icon_refresh = false;
+                    make_time_icon();
+                }
+
 #ifdef HS_DEBUG
+                // 디버그: ↑ 을 누를 때마다 시간대를 낮 → 노을 → 밤 → 실제 시계로 돌리고, 세 번째 줄에 지금 시간대를 보여 준다
                 if(bn::keypad::up_pressed())
                 {
-                    help_line_1.set_text("DEBUG 시간대");
-                    help_line_2.set_text(hs::debug_cycle_time_band());
-                    help_line_3.set_text("(↑ 로 돌린다)");
+                    debug_band_name = hs::debug_cycle_time_band();
+                    time_icon.reset();
+                    time_icon_refresh = true;
                     help_key = -1;
                 }
 #endif
 
                 int key = bn::keypad::a_held() ? 0 : bn::keypad::b_held() ? 1 : bn::keypad::l_held() ? 2 :
-                          bn::keypad::r_held() ? 3 : bn::keypad::left_held() ? 4 : bn::keypad::down_held() ? 5 : -1;
+                          bn::keypad::r_held() ? 3 : bn::keypad::left_held() ? 4 : bn::keypad::down_held() ? 5 :
+                          bn::keypad::up_held() ? 6 : -1;
 
                 if(key != help_key)
                 {
@@ -2450,6 +2475,12 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     help_line_1.set_text(key < 0 ? "" : help_texts[key][0]);
                     help_line_2.set_text(key < 0 ? "" : help_texts[key][1]);
                     help_line_3.set_text(key < 0 ? "" : help_texts[key][2]);
+#ifdef HS_DEBUG
+                    if(key == 6 && debug_band_name)
+                    {
+                        help_line_3.set_text(debug_band_name);       // 디버그: 지금 강제로 정한 시간대
+                    }
+#endif
                 }
             }
             else if(bn::keypad::a_pressed())
