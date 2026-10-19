@@ -674,7 +674,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.3.2";
+constexpr const char* game_version = "v0.4.0";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -3299,16 +3299,18 @@ class slot_list
 {
 
 public:
-    slot_list(bn::sprite_text_generator& center_generator, int top_y, int step_y, bool with_new = false) :
+    // with_slots가 false면 슬롯 줄은 만들지 않는다 (HARD는 저장할 수 없다)
+    slot_list(bn::sprite_text_generator& center_generator, int top_y, int step_y, bool with_new = false, bool with_slots = true) :
         _generator(center_generator),
         _top_y(top_y),
         _step_y(step_y),
-        _first_slot_line(with_new ? 1 : 0)
+        _first_slot_line(with_new ? 1 : 0),
+        _with_slots(with_slots)
     {
         refresh();
     }
 
-    [[nodiscard]] int line_count() const { return _first_slot_line + hs::save::slot_count; }
+    [[nodiscard]] int line_count() const { return _first_slot_line + (_with_slots ? hs::save::slot_count : 0); }
 
     void refresh()
     {
@@ -3318,7 +3320,7 @@ public:
             _generator.generate(0, _top_y, "NEW GAME", _lines[0]);
         }
 
-        for(int slot = 0; slot < hs::save::slot_count; ++slot)
+        for(int slot = 0; _with_slots && slot < hs::save::slot_count; ++slot)
         {
             bn::ivector<bn::sprite_ptr>& line = _lines[_first_slot_line + slot];
             line.clear();
@@ -3355,6 +3357,7 @@ private:
     int _top_y;
     int _step_y;
     int _first_slot_line;
+    bool _with_slots;
     bn::vector<bn::sprite_ptr, 40> _lines[1 + hs::save::slot_count];
 };
 
@@ -3370,6 +3373,7 @@ enum class pause_choice
 // Save는 슬롯 3개 중 하나를 골라 저장한다. 이미 저장된 슬롯은 덮어쓸지 한 번 묻는다.
 pause_choice run_pause(const hs::economy& eco)
 {
+    const bool hard = eco.diff() == hs::difficulty::HARD;      // HARD는 저장할 수 없다 (Save가 회색)
     constexpr int item_count = 3;
     constexpr const char* item_names[item_count] = { "Resume", "Save", "Quit" };
     constexpr int title_y = -44;
@@ -3405,12 +3409,25 @@ pause_choice run_pause(const hs::economy& eco)
         center_generator.generate(0, top_y + index * step_y, item_names[index], item_sprites[index]);
     }
 
+    // HARD: Save 줄을 회색으로, PAUSE 아래에 "HARD - 저장 불가" 안내
+    bn::optional<bn::sprite_palette_ptr> gray_palette;
+    bn::vector<bn::sprite_ptr, 16> hard_label_sprites;
+
+    if(hard)
+    {
+        gray_palette = create_tinted_font_palette(bn::color(14, 14, 14));
+        set_sprites_palette(item_sprites[1], *gray_palette);
+        center_generator.generate(0, title_y + 17, "HARD - 저장 불가", hard_label_sprites);
+        set_sprites_palette(hard_label_sprites, *gray_palette);
+    }
+
     slot_list slots(center_generator, top_y, step_y);
     slots.set_visible(false);
     text_line footer_text(left_generator, -114, 68);
 
     bool slot_screen = false;
     bool confirming = false;     // 덮어쓰기 확인 중
+    bool quit_confirming = false;       // 나가기 확인 중 (저장하지 않은 진행은 사라진다)
     int selected = 0;
     int slot = 0;
     int frame = 0;
@@ -3455,7 +3472,23 @@ pause_choice run_pause(const hs::economy& eco)
     {
         ++frame;
 
-        if(! slot_screen)
+        if(quit_confirming)
+        {
+            if(bn::keypad::a_pressed())
+            {
+                play_select();
+                fade_screen(false);
+                return pause_choice::QUIT;
+            }
+            else if(bn::keypad::b_pressed() || bn::keypad::start_pressed())
+            {
+                quit_confirming = false;
+                footer_text.set_text(default_hint);
+            }
+
+            animate_items();
+        }
+        else if(! slot_screen)
         {
             if(bn::keypad::up_pressed())
             {
@@ -3485,17 +3518,30 @@ pause_choice run_pause(const hs::economy& eco)
 
                 if(selected == 1)
                 {
-                    slot_screen = true;
-                    slot = 0;
-                    frame = 8;
-                    show_items(false);
-                    slots.set_visible(true);
+                    if(hard)
+                    {
+                        footer_text.set_text("HARD 모드는 저장할 수 없다");
+                        notice = notice_frames;
+                    }
+                    else
+                    {
+                        slot_screen = true;
+                        slot = 0;
+                        frame = 8;
+                        show_items(false);
+                        slots.set_visible(true);
+                    }
                 }
                 else
                 {
-                    fade_screen(false);
-                    return pause_choice::QUIT;
+                    quit_confirming = true;
+                    footer_text.set_text("정말 나갈까요?  A 예  B 아니오");
                 }
+            }
+
+            if(notice > 0 && --notice == 0)
+            {
+                footer_text.set_text(default_hint);
             }
 
             animate_items();
@@ -3591,8 +3637,22 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
     bn::vector<bn::sprite_ptr, 8> title_sprites;
     center_generator.generate(0, title_y, "START", title_sprites);
 
-    slot_list list(center_generator, top_y, step_y, true);
+    // HARD는 저장할 수 없다: NEW GAME만 두고 슬롯 칸에는 안내 문구를 회색으로 보여 준다
+    const bool hard = eco.diff() == hs::difficulty::HARD;
+    slot_list list(center_generator, top_y, step_y, true, ! hard);
     text_line footer_text(left_generator, -114, 68);
+
+    bn::optional<bn::sprite_palette_ptr> gray_palette;
+    bn::vector<bn::sprite_ptr, 24> hard_notice_sprites;
+
+    if(hard)
+    {
+        gray_palette = create_tinted_font_palette(bn::color(14, 14, 14));
+        center_generator.generate(0, top_y + step_y + 10, "HARD 모드는", hard_notice_sprites);
+        center_generator.generate(0, top_y + step_y + 28, "저장할 수 없다", hard_notice_sprites);
+        center_generator.generate(0, top_y + step_y + 52, "한 번에 끝까지 간다!", hard_notice_sprites);
+        set_sprites_palette(hard_notice_sprites, *gray_palette);
+    }
 
     int selected = 0;
     unsigned frame = 0;
