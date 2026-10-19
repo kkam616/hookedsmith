@@ -367,10 +367,10 @@ STORY·HARD 모두 한 표에 둔다. 원작 값이라 +25→26 성공률이 오
 ### 17-4b. 수상한 상인 이벤트 (구현됨, 그림·소리는 임시)
 - **발생**: **노을(16~21시)** 에 검을 **판매**할 때. 판매 결과 메시지가 끝난 뒤 이벤트 화면이 열린다 (도둑과 같은 방식). STORY·HARD 공통. **확률 2%, 쿨다운 10번** (쿨다운은 저장 안 함, 디버그는 확률 100%·쿨다운 짧게). 판매 금액이 있는 판매만 해당.
 - **보상**: **방금 판 금액의 100%를 더 지급** (상한 없음). 소지금이 올라가는 연출은 판매 연출(`phase::SELL`)의 동전을 재사용.
-- **연출 (sneak)**: 알림 번쩍(`sfx_event`) → 창이 열림 → 상인이 **그림자(실루엣)로 웅크려 살금살금** 걸어 들어오다 가운데쯤에서 색이 돌아옴 → 멈춰서 **좌우를 살핌**, ▼ 깜빡임 → A → **사진**이 번쩍이며 나오고 대사 → A → 금화 더미 방에서 주머니를 내밀고 보상 메시지 → 강화 화면에서 금화가 튀며 소지금 상승. 시안: `tools/preview_merchant_motion2.py` (`build/merchant_mock2/motion_sneak.gif`).
+- **연출 (sneak)**: 알림 번쩍(`sfx_event`) → 창이 열림 → 상인이 **그림자(실루엣)로 웅크려 살금살금** 걸어 들어오다 가운데쯤에서 색이 돌아옴 → 멈춰서 **좌우를 살핌**, ▼ 깜빡임 → A → **사진**이 번쩍이며 나오고 대사 → A → **같은 사진 그대로** 보상 메시지(도둑·고양이 이벤트와 같다) → A → 강화 화면으로. 시안: `tools/preview_merchant_motion2.py` (`build/merchant_mock2/motion_sneak.gif`).
 - **말투 (B 음침한 밀거래꾼)**: 사진 컷 "쉿... 비밀이오." / "이건 덤이오..." → 보상 컷 "수상한 상인이 대금을" / "두 배로 쳐 주었다!" + `+$금액`.
 - **구현**: `run_merchant_event`(main.cpp, 도둑 이벤트 틀), `forge_exit::MERCHANT`, economy `merchant_ready`·`note_sunset_sale`·`pay_merchant`·`last_sale`, 수치 `merchant_chance_pct`·`merchant_cooldown_sales`(economy_data.h). 그림은 `python -B tools/make_merchant_assets.py`로 `graphics/merchant*.bmp`를 만든다 (상인 도트는 `tools/preview_merchant_motion2.py`의 임시 그림). 소리는 알림 `sfx_event`, 웃음 `sfx_thief`(임시), 금화 `sfx_sell_2`, 음악 `bgm_event_thief`(임시). 디버그로 확인: SELECT 도움말에서 ↑로 노을을 만든 뒤 **B를 0.2초 이상** 눌러 판다 (확률 100%).
-- **필요한 것(실제 그림으로 바꿀 때)**: ① 상인 스프라이트 32x32 x 8프레임 (걷기 4, 웅크려 걷기, 좌우 살핌(좌우 반전), 인사/속삭임, 주머니 내밀기) ② 방 배경 노을 2장(받침대 비어 있음 / 금화 더미, 창 86x70) ③ 사진 1장 (`assets/graphics/events/merchant_photo_source.webp`, 창 86x70으로 줄임) ④ 효과음 `sfx_merchant`(웃음/헛기침, 임시: 기존 효과음) ⑤ 배경음 `bgm_event_merchant`(임시: `bgm_event_cat`). 코드: `run_merchant_event`(도둑 이벤트 틀), `forge_exit::MERCHANT`, economy에 쿨다운·확률·보상 지급. 사진 그림은 오른쪽 아래 생성기 마크를 지워 쓴다.
+- **필요한 것(실제 그림으로 바꿀 때)**: ① 상인 스프라이트 32x32 x 5프레임 (웅크려 걷기 4, 좌우 살핌(좌우 반전)) ② 방 배경 노을 1장(창 86x70) ③ 사진 1장 (`assets/graphics/events/merchant_photo_source.webp`, 창 86x70으로 줄임) ④ 효과음 `sfx_merchant`(웃음/헛기침, 임시: 기존 효과음) ⑤ 배경음 `bgm_event_merchant`(임시: `bgm_event_cat`). 코드: `run_merchant_event`(도둑 이벤트 틀), `forge_exit::MERCHANT`, economy에 쿨다운·확률·보상 지급. 사진 그림은 오른쪽 아래 생성기 마크를 지워 쓴다.
 
 ### 17-5. OPTION 메뉴 (타이틀 > OPTION)
 **메뉴 화살표:** 시작 화면, 일시정지, OPTION에서는 고른 줄 왼쪽에 노란 도트 화살표(`menu_arrow` 스프라이트, 영문 대문자 높이에 맞춤)가 **고정**되고 고른 글자만 위아래로 2px 흔들린다.

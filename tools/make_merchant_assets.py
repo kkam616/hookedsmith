@@ -1,8 +1,8 @@
 """수상한 상인 이벤트 그림을 graphics/에 쓴다 (수동 실행). 도둑 이벤트(make_thief_assets.py)와 같은 틀.
 
-- graphics/merchant.bmp (+json): 도트 상인 32x32 x 6장 (웅크려 살금살금 걷기 4 + 좌우 살피는 모습 1 + 금화 주머니를 내미는 모습 1), 팔레트 15색
+- graphics/merchant.bmp (+json): 도트 상인 32x32 x 5장 (웅크려 살금살금 걷기 4 + 좌우 살피는 모습 1), 팔레트 15색
   (지금 도트는 tools/preview_merchant_motion2.py의 임시 그림. 실제 도트가 나오면 같은 규격으로 바꿔 끼운다)
-- graphics/merchant_room.bmp / merchant_room_coins.bmp: 노을 방 창(86x70). 받침대가 빈 것 / 금화가 쌓인 것
+- graphics/merchant_room.bmp: 노을 방 창(86x70, 받침대가 빈 것)
 - graphics/merchant_photo.bmp: 같은 자리의 창 틀 + 상인 사진 (원본 assets/graphics/events/merchant_photo_source.webp, 80x64)
 창 위치·틀은 고양이·도둑 이벤트와 같다 (make_cat_assets.write_background).
 
@@ -28,7 +28,7 @@ STAND_X, STAND_Y = 62, 39          # 받침대 위치 (창 안쪽 80x64 기준, 
 
 
 def write_sprite():
-    frames = [motion.merchant('walk', i, crouch=2) for i in range(4)] + [motion.merchant('look'), motion.merchant('give')]
+    frames = [motion.merchant('walk', i, crouch=2) for i in range(4)] + [motion.merchant('look')]
     sheet = Image.new('RGBA', (32, 32 * len(frames)), (0, 0, 0, 0))
     for i, frame in enumerate(frames):
         sheet.alpha_composite(frame, (0, i * 32))
@@ -73,7 +73,6 @@ def room(kind):
 def main():
     write_sprite()
     cat_assets.write_background('merchant_room', room('empty'), 15)
-    cat_assets.write_background('merchant_room_coins', room('coins'), 15)
 
     source = Image.open(SOURCE).convert('RGB')
     w, h = source.size
@@ -83,7 +82,7 @@ def main():
     top = max(0, (h - new_h) // 2)
     source = source.crop((0, top, w, top + new_h))
     cat_assets.write_background('merchant_photo', photo.to_pixel(source, INTERIOR, 13, 1.1), 15)
-    print('graphics/merchant.bmp, merchant_room*.bmp, merchant_photo.bmp 작성')
+    print('graphics/merchant.bmp, merchant_room.bmp, merchant_photo.bmp 작성')
     return 0
 
 
