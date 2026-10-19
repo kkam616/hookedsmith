@@ -18,7 +18,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_font import write_if_changed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOURCE = os.path.join(ROOT, 'graphics', 'forge_bg.bmp')
+SOURCE = os.path.join(ROOT, 'assets', 'graphics', 'forge', 'forge_bg_base.bmp')      # 아이콘 없는 낮 그림 (graphics/forge_bg.bmp는 여기서 만든다)
+ICON_DIR = os.path.join(ROOT, 'assets', 'graphics', 'forge')
+ICON_POS = (6, 46)      # 시간대 아이콘(18x18) 왼쪽 위: L 아이콘 바로 아래
 OUT = os.path.join(ROOT, 'build', 'forge_bg_time')
 WIDTH, HEIGHT = 240, 160
 
@@ -202,8 +204,38 @@ def build_indexed(image):
     return result, palette, len(free), len(special)
 
 
-def write_variant(name, image):
-    indices, palette, free_count, special_count = build_indexed(image)
+def bake_icon(indices, palette, band):
+    """시간대 아이콘(원형 메달)을 색 번호 그림에 굽는다. 아이콘 색은 팔레트 뒤쪽(65번~)에 새 칸으로 붙인다 (8bpp라 256색까지 가능)."""
+    icon = Image.open(os.path.join(ICON_DIR, 'time_icon_%s.png' % band)).convert('RGBA')
+    palette = list(palette)
+    lookup = {}
+    ip = indices.load()
+    for y in range(icon.size[1]):
+        for x in range(icon.size[0]):
+            r, g, b, a = icon.getpixel((x, y))
+            if a < 128:
+                continue
+            color = (r & 0xF8, g & 0xF8, b & 0xF8)
+            if color not in lookup:
+                lookup[color] = len(palette)
+                palette.append(color)
+            ip[ICON_POS[0] + x, ICON_POS[1] + y] = lookup[color]
+    assert len(palette) <= 256
+    return indices, palette
+
+
+def write_variant(name, image, band):
+    if band == 'day':
+        # 낮은 원본 그림의 색 번호·팔레트를 그대로 쓰고 아이콘만 얹는다
+        base = Image.open(SOURCE)
+        raw = base.getpalette()
+        palette = [tuple(raw[i * 3:i * 3 + 3]) for i in range(65)]
+        indices = base.crop((0, 0, WIDTH, HEIGHT)).copy()
+        free_count = special_count = 0
+    else:
+        indices, palette, free_count, special_count = build_indexed(image)
+
+    indices, palette = bake_icon(indices, palette, band)
 
     canvas = Image.new('P', (256, 256), 0)
     canvas.paste(indices, (0, 0))
@@ -241,9 +273,10 @@ def main():
         image.save(os.path.join(OUT, 'bg_%s.png' % name))
 
     if '--write' in sys.argv:
-        write_variant('forge_bg_sunset', variants[1][1])
-        write_variant('forge_bg_night', variants[2][1])
-        print('graphics/forge_bg_sunset.bmp, forge_bg_night.bmp 작성')
+        write_variant('forge_bg', variants[0][1], 'day')
+        write_variant('forge_bg_sunset', variants[1][1], 'sunset')
+        write_variant('forge_bg_night', variants[2][1], 'night')
+        print('graphics/forge_bg.bmp, forge_bg_sunset.bmp, forge_bg_night.bmp 작성 (시간대 아이콘 포함)')
 
     print('출력:', OUT)
     return 0

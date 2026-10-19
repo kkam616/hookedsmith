@@ -59,7 +59,7 @@ HARD가 열려 있고, **SELECT 도움말에서 ↑** = 시간대를 낮 → 노
 - `src/main.cpp` — 모든 화면 (`run_splash`, `run_title`, `run_start_select`, `run_opening_cutscene`, `run_forge`(강화 화면, 가장 큼), `run_recipe`(SELECT→START 레시피), `run_cat_event`(고양이 이벤트), `run_thief_event`(밤 도둑 이벤트), `run_shop`, `run_storage`(창고·잡화), `run_crafting`(화구), `run_pause`, `run_game_over`, `main()`).
 - `include/economy_data.h` — 모든 수치 표(단계·상점·레시피·검 이름). `include/economy.h` + `src/economy.cpp` — 경제 로직(`upgrade`, `destroy`, `sell`, `buy`, `craft`, `is_bankrupt`, `success_pct`, `take_snapshot/restore`).
 - `include/save.h` + `src/save.cpp` — SRAM 세이브(슬롯 3개 + HARD 해금 머리글). `include/time_band.h` + `src/time_band.cpp` — 낮/노을/밤.
-- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표), `make_thief_assets.py`(도둑 그림), `make_recipe_icon.py --write`(레시피 아이콘), `make_recipe_paper.py`(레시피 종이 배경), `make_forge_bg_time.py --write`(노을·밤 강화 배경: 낮 `forge_bg.bmp`에서 문 밖·빛줄기만 다시 칠함), `make_cat_assets.py`(고양이 그림), `make_title_bg.py --write`(타이틀 배경 3장 + 로고, 원본 `assets/graphics/title/`; 위치·크기는 `preview_new_title.py`), `preview_new_cutscenes.py`(AI 컷씬 원본 PNG → 240x112·16색 시안), `check_dialogue_width.py`(컷씬 대사가 박스 두 줄에 들어가는지 검사 — 대사를 고치면 먼저 돌릴 것), `make_sfx.py`(효과음 4종을 `audio/*.wav`로 만든다). 원본은 `assets/graphics/<종류>/`.
+- `tools/` — 변환 스크립트. **빌드 때 자동**: `make_font.py`(한글 폰트 + 외곽선 폰트), `make_cutscenes.py`, `make_swords.py`(검 프레임 4개 + 연출 그림 `fx`), `make_music.py`. **수동 실행**: `make_icons.py`, `make_anvil.py`, `make_forge_bg.py`, `make_title_icons.py`, `make_gameover.py`, `make_splash_logo.py [크기]`, `make_menu_bgs.py`, `make_item_icons.py --write`, `make_sword_icons.py --write`(검 그림을 바꾸면 다시), `make_manual.py`(매뉴얼 표), `make_thief_assets.py`(도둑 그림), `make_recipe_icon.py --write`(레시피 아이콘), `make_recipe_paper.py`(레시피 종이 배경), `make_forge_bg_time.py --write`(낮·노을·밤 강화 배경 3장: 낮 원본 `assets/graphics/forge/forge_bg_base.bmp`에서 문 밖·빛줄기만 다시 칠하고 시간대 아이콘을 구워 넣음), `make_time_icons.py`(시간대 아이콘 3개), `make_cat_assets.py`(고양이 그림), `make_title_bg.py --write`(타이틀 배경 3장 + 로고, 원본 `assets/graphics/title/`; 위치·크기는 `preview_new_title.py`), `preview_new_cutscenes.py`(AI 컷씬 원본 PNG → 240x112·16색 시안), `check_dialogue_width.py`(컷씬 대사가 박스 두 줄에 들어가는지 검사 — 대사를 고치면 먼저 돌릴 것), `make_sfx.py`(효과음 4종을 `audio/*.wav`로 만든다). 원본은 `assets/graphics/<종류>/`.
 
 ### 효과음 (칩튠, `tools/make_sfx.py` → `audio/sfx_*.wav` → `bn::sound_items::sfx_*`)
 네모파·삼각파·잡음을 파이썬으로 합성한 8bit 모노 18157Hz wav. 수정하려면 스크립트의 각 함수를 고쳐 다시 실행(+ 이어 듣기용 `build/sfx_preview_all.wav`가 같이 생긴다).
@@ -100,7 +100,7 @@ HARD가 열려 있고, **SELECT 도움말에서 ↑** = 시간대를 낮 → 노
 
 ## 미정 / 정해야 할 것
 - HARD 슬롯을 모드별로 나눌지 (지금은 시작 화면이 STORY·HARD 어느 쪽으로 들어가도 같고, 어떤 모드 슬롯이든 불러온다).
-- 판매가·강화비 라벨과 값을 색으로 구분할지, 시간대를 알려 주는 표시를 둘지.
+- 판매가·강화비 라벨과 값을 색으로 구분할지. (시간대 표시는 L 아이콘 아래 메달로 해결)
 - 어두운 검 아이콘(+3, +12, +13, +15) 대비 보완 — 목록 배경이 정해진 뒤.
 - "돈이 없다!"는 돈이 0이 되면 파산(게임 오버)이 먼저 걸려 거의 볼 수 없다. 의도와 맞는지 확인.
 - 영어 지원(OPTION에서 Language 전환 예정): 한글 문자열이 코드에 박혀 있고(81개+) 조각을 이어 붙이는 문장이 있다 → 언어별 문자열 표 + 문장 틀로 바꿔야 한다. 영어가 더 길어 넘치는 곳: 메시지 줄(70px), 정보 줄, 잡템 이름 칸. 언어 설정도 세이브에 저장. 화면이 더 늘기 전에 문자열 표부터 만들어 두는 게 좋다.

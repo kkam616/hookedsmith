@@ -326,8 +326,8 @@ STORY·HARD 모두 한 표에 둔다. 원작 값이라 +25→26 성공률이 오
 | 밤 | 21~06시 | 밤 | 문 밖이 남색 하늘에 달·별과 불 켜진 집 창문, 빛줄기가 푸른 달빛 | -4%p |
 - **타이틀 그림:** 잠든 마을 전경에서 대장간만 깨어 있다(아침: 연기, 노을: 가장 붉은 창, 밤: 불꽃). 위쪽 하늘에 로고(`HOOKED SMITH`, 충혈된 두 눈의 O), 아래 어두운 길에 메뉴(STORY·HARD·OPTION 아이콘 + 이름). AI 원본 `assets/graphics/title/bg_*_src.png`·`logo_source.png`를 `python -B tools/make_title_bg.py --write`로 8bpp(255색, 0번은 투명이라 비움) `graphics/title_day·sunset·night.bmp`로 만든다. 로고 위치·크기는 `tools/preview_new_title.py`의 `LOGO_POS`·`LOGO_WIDTH`.
 - 보정은 **강화 성공률만** 바꾼다 (판매가·비용·방지권은 그대로). **100% 구간에도 적용** (예: 노을에 +0은 98%), **하한 0%**, **HARD에도 같은 값**.
-- 강화 버튼을 누르는 순간 시계를 읽고, 강화 화면에서는 1초마다 확인해 16시·21시·06시를 넘으면 성공률 표시가 바로 바뀐다. 화면의 "성공률 N%"는 보정된 값이다 (시간대 자체를 알려 주는 표시는 아직 없다).
-- **배경 그림:** `forge_bg`(낮) / `forge_bg_sunset` / `forge_bg_night`. 낮 그림에서 왼쪽 위 문 밖 풍경과 바닥 빛줄기만 `tools/make_forge_bg_time.py --write`로 다시 칠한 것이다 (낮 그림을 바꾸면 다시 실행). 강화 화면·일시정지(흑백)·고양이 이벤트가 같은 배경을 쓰고, 강화 화면에서는 1초마다 시계를 확인해 시간대를 넘으면 평상시(연출·도움말 중이 아닐 때)에 배경이 바뀐다. 화면 확인용으로 `-DHS_FORCE_BAND=0/1/2`(낮/노을/밤) 빌드가 가능하다.
+- 강화 버튼을 누르는 순간 시계를 읽고, 강화 화면에서는 1초마다 확인해 16시·21시·06시를 넘으면 성공률 표시가 바로 바뀐다. 화면의 "성공률 N%"는 보정된 값이다 (시간대는 강화 화면 왼쪽 위 L 아이콘 바로 아래의 **원형 메달 아이콘**으로 알려 준다: 낮 = 해, 노을 = 지평선의 해, 밤 = 달과 별).
+- **배경 그림:** `forge_bg`(낮) / `forge_bg_sunset` / `forge_bg_night`. 낮 원본 `assets/graphics/forge/forge_bg_base.bmp`에서 왼쪽 위 문 밖 풍경과 바닥 빛줄기만 `tools/make_forge_bg_time.py --write`로 다시 칠하고 시간대 아이콘(`time_icon_*.png`, `tools/make_time_icons.py`로 생성, 18x18)을 배경에 구운 것이다 (스프라이트 팔레트가 가득 차서 아이콘을 스프라이트로 못 올린다). 낮 원본이나 아이콘을 바꾸면 다시 실행. `tools/make_forge_bg.py`는 `graphics/forge_bg.bmp`를 아이콘 없이 덮어쓰니 쓴 뒤에는 `make_forge_bg_time.py --write`를 다시 돌릴 것. 강화 화면·일시정지(흑백)·고양이 이벤트가 같은 배경을 쓰고, 강화 화면에서는 1초마다 시계를 확인해 시간대를 넘으면 평상시(연출·도움말 중이 아닐 때)에 배경이 바뀐다. 화면 확인용으로 `-DHS_FORCE_BAND=0/1/2`(낮/노을/밤) 빌드가 가능하다.
 - **세이브와의 관계:** 시간대는 저장하지 않는다. 낮에 저장한 것을 밤에 불러오면 밤 확률이 적용된다.
 - 플레이어가 시계를 바꿔 시간대를 고르는 것은 **허용** (막지 않는다).
 - 구현: `include/time_band.h` / `src/time_band.cpp`(`hs::current_time_band()`), 보정은 `economy::success_pct()`. 실제 카트리지에 RTC 칩이 있어야 한다 (mGBA는 `[override.HKSM] hardware=1`).
