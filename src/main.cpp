@@ -690,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.3";
+constexpr const char* game_version = "v0.6.4";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -1030,7 +1030,7 @@ constexpr const char* help_texts[help_count + 1][3] = {
     { "재료를 모아 특별한", "무기와 아이템을", "제작하자." },
     { "보유한 무기와", "아이템을 보관하고", "관리하자." },
     { "강화 실패로 얻은", "재료를 모으고", "관리하자." },
-    { "시간에 따라", "강화 확률이", "조정됩니다." },
+    { "시간에 따라", "강화 확률이 조정되니", "주의하자." },
 };
 
 forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string_view& first_message)
@@ -2590,7 +2590,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
                     // HARD: 새 최고 단계에 닿으면 그 순간까지의 숫자를 최고 도달 기록으로 남긴다 (저장 슬롯과 별개)
                     if(eco.take_new_best() && eco.diff() == hs::difficulty::HARD)
                     {
-                        hs::save::write_best(eco.best_level(), eco.stats());
+                        hs::save::write_best(eco.best_level(), eco.stats(), int(hs::current_time_band()));
                     }
                     roll_thief();               // 밤이면 도둑 판정 (강화 한 번)
                     current_phase = phase::HAMMERING;
@@ -4310,6 +4310,7 @@ bool run_record_screen_once()
     bn::vector<bn::sprite_ptr, 40> label_sprites;
     bn::vector<bn::sprite_ptr, 40> value_sprites;
     bn::vector<bn::sprite_ptr, 24> money_sprites;
+    bn::vector<bn::sprite_ptr, 8> band_sprites;
     bn::vector<bn::sprite_ptr, 32> hint_sprites;
 
     if(best.valid)
@@ -4330,6 +4331,18 @@ bool run_record_screen_once()
             const int y = -4 + (index / 2) * 16;        // 줄 간격 16px 균등
             left_generator.generate(-100 + column * 108, y, labels[index], label_sprites);
             right_generator.generate(-4 + column * 108, y, values[index], value_sprites);
+        }
+
+        // 시간대: 그 기록이 나온 때 (낮 / 노을 / 밤). 방지권 줄의 빈 칸(오른쪽)에 둔다. 예전 기록은 "-"
+        constexpr const char* band_names[3] = { "낮", "노을", "밤" };
+        left_generator.generate(8, 28, "시간대", label_sprites);
+        right_generator.generate(104, 28, best.band >= 0 ? band_names[best.band] : "-", band_sprites);
+
+        if(best.band >= 0)
+        {
+            bn::sprite_palette_ptr band_palette = create_tinted_font_palette(
+                best.band == 0 ? bn::color(31, 26, 12) : best.band == 1 ? bn::color(31, 14, 6) : bn::color(14, 20, 31));
+            set_sprites_palette(band_sprites, band_palette);
         }
 
         // 최고 소지금: 한 줄을 통째로 쓴다 (가장 많이 가졌던 금액, 시작 자금부터)

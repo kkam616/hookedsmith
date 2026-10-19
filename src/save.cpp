@@ -49,7 +49,7 @@ namespace
         uint8_t version;
         uint8_t best_level;       // 0 = 기록 없음
         uint8_t gallery;          // 아래쪽 6비트 = 엔딩 도감 (모드*3 + 시간대)
-        uint8_t reserved;
+        uint8_t best_band;        // 최고 도달 기록의 시간대 + 1 (0 = 모름: 예전 기록)
         uint16_t upgrades;
         uint16_t successes;
         uint16_t fails;
@@ -256,12 +256,13 @@ best_record read_best()
         result.stats.broken = data.broken;
         result.stats.tickets_used = data.tickets_used;
         result.stats.peak_money = data.peak_money;
+        result.band = data.best_band >= 1 && data.best_band <= 3 ? data.best_band - 1 : -1;
     }
 
     return result;
 }
 
-void write_best(int level, const run_stats& stats)
+void write_best(int level, const run_stats& stats, int band)
 {
     record_data data = {};
 
@@ -277,6 +278,7 @@ void write_best(int level, const run_stats& stats)
     data.broken = stats.broken;
     data.tickets_used = stats.tickets_used;
     data.peak_money = stats.peak_money;
+    data.best_band = uint8_t(band >= 0 && band <= 2 ? band + 1 : 0);
     write_record(data);
 }
 
