@@ -9,7 +9,6 @@
 - `CHANGELOG.md` — 버전별 변경 이력 (버전 번호는 `src/main.cpp`의 `game_version`, 올릴 때 같이 고친다)
 - `docs/ECONOMY_SPEC.md` — 원작 수치 CSV와 경제 규칙(구현 스펙)
 - `docs/DESIGN_NOTES.md` — 용어·스토리·데이터 취급 원칙
-- `docs/COVER_BOX.md` — GBA 박스 표지 작업 핸드오프 (레이아웃·프롬프트·다음 할 일)
 - 기획 문서(웹): https://claude.ai/code/artifact/73958658-7f11-4c5d-9b9d-c0411b66512b
 
 ## 작업 방식 (사용자 선호)
