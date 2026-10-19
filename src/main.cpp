@@ -44,7 +44,11 @@
 #include "bn_regular_bg_items_scene1_bedside.h"
 #include "bn_regular_bg_items_scene2_anvil.h"
 #include "bn_regular_bg_items_scene3_father_close.h"
-#include "bn_regular_bg_items_scene4_forge_door.h"
+#include "bn_regular_bg_items_scene4_tax_collector.h"
+#include "bn_regular_bg_items_scene5_decree.h"
+#include "bn_regular_bg_items_scene6_dagger.h"
+#include "bn_regular_bg_items_scene7_forge_door.h"
+#include "bn_regular_bg_items_scene_bankrupt.h"
 #include "bn_sprite_items_anvil.h"
 #include "bn_sprite_items_title_icon_hard.h"
 #include "bn_sprite_items_title_icon_option.h"
@@ -3690,8 +3694,8 @@ struct cutscene_scene
 };
 
 constexpr dialogue_line scene1_lines[] = {
-    { "아버지", "우리 가문은... 시공간을 초월하는 전설의 대장장이 집안이었다." },
-    { "아버지", "어떻게서든... 이름을 알려라. 가문의 명예를 높이던, 부자가 되던..." },
+    { "아버지", "우리 가문은... 시공간을 넘나들던 전설의 대장장이 집안이었다." },
+    { "아버지", "어떻게든... 이름을 떨쳐라. 가문의 명예든, 부자든... 뭐든 좋다." },
 };
 
 constexpr dialogue_line scene2_lines[] = {
@@ -3703,6 +3707,22 @@ constexpr dialogue_line scene3_lines[] = {
 };
 
 constexpr dialogue_line scene4_lines[] = {
+    { "징수관", "대장장이 스미스! 아버지 몫까지 밀린 세금을 받으러 왔다." },
+    { "징수관", "세금은 대물림되는 법이지. 이번 달 안에 못 내면 압류다!" },
+    { "스미스", "아버지 장례도 치르기 전에... 너무하십니다." },
+};
+
+constexpr dialogue_line scene5_lines[] = {
+    { "포고문", "왕의 포고. 화염에 달군 검을 바치는 자에게 평생 세금을 면제한다." },
+    { "스미스", "화염에 달군 검...! 이거다. 아버지가 말한 길이!" },
+};
+
+constexpr dialogue_line scene6_lines[] = {
+    { "스미스", "남은 건 이 낡은 단검 하나뿐인가..." },
+    { "스미스", "...아니, 하나면 충분해. 화염에 달군 검으로 키워 주마." },
+};
+
+constexpr dialogue_line scene7_lines[] = {
     { "스미스", "아버지의 소원을 이루겠다." },
     { "스미스", "기필코... 반드시." },
 };
@@ -3711,7 +3731,10 @@ constexpr cutscene_scene opening_scenes[] = {
     { bn::regular_bg_items::scene1_bedside, scene1_lines },
     { bn::regular_bg_items::scene2_anvil, scene2_lines },
     { bn::regular_bg_items::scene3_father_close, scene3_lines },
-    { bn::regular_bg_items::scene4_forge_door, scene4_lines },
+    { bn::regular_bg_items::scene4_tax_collector, scene4_lines },
+    { bn::regular_bg_items::scene5_decree, scene5_lines },
+    { bn::regular_bg_items::scene6_dagger, scene6_lines },
+    { bn::regular_bg_items::scene7_forge_door, scene7_lines },
 };
 
 constexpr int textbox_x = -114;
@@ -3855,13 +3878,13 @@ void run_opening_cutscene()
     run_cutscene(opening_scenes, &bn::music_items::story_chiptune_sad);
 }
 
-// 파산 컷: 스미스의 독백 한 줄 (그림은 임시로 모루 장면. 새 그림이 오면 bankrupt_scenes의 bg만 바꾼다)
+// 파산 컷: 스미스의 독백 한 줄 (그림 scene_bankrupt)
 constexpr dialogue_line bankrupt_lines[] = {
     { "스미스", "돈이 다 떨어졌다..." },
 };
 
 constexpr cutscene_scene bankrupt_scenes[] = {
-    { bn::regular_bg_items::scene2_anvil, bankrupt_lines },
+    { bn::regular_bg_items::scene_bankrupt, bankrupt_lines },
 };
 
 void run_bankrupt_cutscene()
