@@ -686,7 +686,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.5.5";
+constexpr const char* game_version = "v0.5.6";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -1520,6 +1520,7 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
             center_generator.generate(0, 33, "START", help_label_sprites);
 
             make_time_icon();
+            center_generator.generate(-89, -25, "↑", help_label_sprites);        // 시간대 아이콘 옆의 키 표시 (←·↓ 처럼)
 
             // 판매·강화는 못 쓰는 상태여도 도움말에서는 컬러로 보여준다
             set_button_enabled(sell_icon_palette, sell_badge, true);
