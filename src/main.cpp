@@ -674,7 +674,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.4.0";
+constexpr const char* game_version = "v0.4.1";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -3411,14 +3411,16 @@ pause_choice run_pause(const hs::economy& eco)
 
     // HARD: Save 줄을 회색으로, PAUSE 아래에 "HARD - 저장 불가" 안내
     bn::optional<bn::sprite_palette_ptr> gray_palette;
+    bn::optional<bn::sprite_palette_ptr> red_palette;
     bn::vector<bn::sprite_ptr, 16> hard_label_sprites;
 
     if(hard)
     {
         gray_palette = create_tinted_font_palette(bn::color(14, 14, 14));
+        red_palette = create_tinted_font_palette(bn::color(31, 7, 7));
         set_sprites_palette(item_sprites[1], *gray_palette);
         center_generator.generate(0, title_y + 17, "HARD - 저장 불가", hard_label_sprites);
-        set_sprites_palette(hard_label_sprites, *gray_palette);
+        set_sprites_palette(hard_label_sprites, *red_palette);      // 저장 불가는 빨간 글씨
     }
 
     slot_list slots(center_generator, top_y, step_y);
@@ -3647,10 +3649,8 @@ start_result run_start_select(hs::economy& eco, unsigned& seed)
 
     if(hard)
     {
-        gray_palette = create_tinted_font_palette(bn::color(14, 14, 14));
-        center_generator.generate(0, top_y + step_y + 10, "HARD 모드는", hard_notice_sprites);
-        center_generator.generate(0, top_y + step_y + 28, "저장할 수 없다", hard_notice_sprites);
-        center_generator.generate(0, top_y + step_y + 52, "한 번에 끝까지 간다!", hard_notice_sprites);
+        gray_palette = create_tinted_font_palette(bn::color(31, 7, 7));      // 빨간 글씨로 강조
+        center_generator.generate(0, top_y + step_y + 18, "HARD 모드는 저장 할 수 없습니다.", hard_notice_sprites);
         set_sprites_palette(hard_notice_sprites, *gray_palette);
     }
 
