@@ -1,5 +1,5 @@
 """새 도둑 시안(preview_thief_new_sprite.py 결과)을 게임 규격 15색으로 줄이고 원본과 비교하는 GIF·보드를 만든다.
-쓰는 프레임: 걷기 T1~T8(8장), 두리번 T0·B0(서 있는 모습 2장), 검을 집은 모습 B3(검을 쥐고 팔을 내민 모습)
+쓰는 프레임: 걷기 T1~T8(8장), 검 들기 B4·B5(2장, 마지막 연출), 두리번 T0·B0(서 있는 모습 2장), 검을 집은 모습 B3(검을 쥐고 팔을 내민 모습)
 바닥에서 줍는 B1·B2는 쓰지 않는다.
 사용: python -B tools/preview_thief_new_sprite.py 다음에 python -B tools/preview_thief_compare.py [--write]
 --write: graphics/thief.bmp를 새 프레임 11장(걷기 8 + 서 있음 2 + 집기 1)으로 쓴다 (make_thief_assets.py의 도트 도둑을 대신한다)
@@ -25,7 +25,7 @@ def main():
     frames = pickle.load(open(os.path.join(OUT, 'frames.pkl'), 'rb'))
     T = frames[:10]
     B = frames[10:]
-    picks = {'walk': T[1:9], 'stand': [T[0], B[0]], 'pick': [B[3]]}
+    picks = {'walk': T[1:9], 'stand': [T[0], B[0]], 'pick': [B[3], B[4], B[5]]}
     order = picks['walk'] + picks['stand'] + picks['pick']          # 11장
 
     flat = Image.new('RGB', (32, 32 * len(order)), (255, 0, 255))
@@ -49,7 +49,7 @@ def main():
                 if alpha[k * 32 + y, x]:
                     im.putpixel((x, y), tuple(pal[q.getpixel((x, k * 32 + y))]) + (255,))
         new.append(im)
-    new_walk, new_stand, new_pick = new[:8], new[8:10], new[10]
+    new_walk, new_stand, new_pick = new[:8], new[8:10], new[10]      # new[11], new[12]는 검을 드는 모습(+반짝임)
 
     if '--write' in sys.argv:
         from make_font import write_bmp_4bpp, write_if_changed
@@ -61,7 +61,7 @@ def main():
                         psheet.putpixel((x, k * 32 + y), q.getpixel((x, k * 32 + y)) + 1)
         palette = [(255, 0, 255)] + [tuple(c) for c in pal]
         write_if_changed(os.path.join(ROOT, 'graphics', 'thief.bmp'), write_bmp_4bpp(None, psheet, palette))
-        print('graphics/thief.bmp 갱신 (프레임 %d장: 걷기 8, 서 있음 2, 집기 1)' % len(order))
+        print('graphics/thief.bmp 갱신 (프레임 %d장: 걷기 8, 서 있음 2, 집기 1, 검 들기 2)' % len(order))
 
     sheet = Image.new('RGBA', (32, 32 * len(new)), (0, 0, 0, 0))
     for k, im in enumerate(new):

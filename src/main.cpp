@@ -690,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.6";
+constexpr const char* game_version = "v0.6.7";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -4968,13 +4968,14 @@ void run_cat_event(hs::economy& eco, bn::seed_random& random)
             if(u < cat_walk_frames)
             {
                 cat.set_x(cat_interior_left + (cat_sit_x - cat_interior_left) * u / cat_walk_frames);
-                cat.set_item(bn::sprite_items::cat, (u / 5) % 4);
+                cat.set_item(bn::sprite_items::cat, (u * 2 / 5) % 8);          // 걷기 8장 (한 바퀴 20프레임)
             }
             else
             {
                 const int sit_time = u - cat_walk_frames;
                 cat.set_x(cat_sit_x);
-                cat.set_item(bn::sprite_items::cat, 4 + (sit_time < 10 ? 1 : (sit_time / 8) % 3));       // 꼬리 흔들기는 계속 반복
+                const int tail = (sit_time / 4) % 14;                         // 꼬리가 왼쪽 ↔ 오른쪽으로 왕복 (8장, 4프레임마다)
+                cat.set_item(bn::sprite_items::cat, 8 + (tail < 8 ? tail : 14 - tail));       // 꼬리 흔들기는 계속 반복
                 ready = sit_time >= 24 && photo_countdown < 0;
             }
         }
@@ -5178,8 +5179,10 @@ void run_thief_event(hs::economy& eco, bn::seed_random& random)
                     room_empty.set_visible(true);
                 }
 
+                // 검을 쥐었다가(집기) 높이 들어 올리고, 기다리는 동안 반짝이며 흔든다
+                const int since_grab = frame - grab_frame;
                 thief.set_x(thief_stop_x + 6);
-                thief.set_item(bn::sprite_items::thief, 10);
+                thief.set_item(bn::sprite_items::thief, since_grab < 12 ? 10 : 11 + ((since_grab - 12) / 8) % 2);
                 ready = frame >= grab_frame + thief_ready_after_grab && photo_countdown < 0;
             }
         }
@@ -5278,7 +5281,9 @@ constexpr int merchant_walk_frames = 56;
 constexpr int merchant_silhouette_frames = 28;          // 이 동안은 검은 그림자, 그 뒤 16프레임에 걸쳐 색이 돌아온다
 constexpr int merchant_look_frames = 18;                // 좌우를 살피는 주기
 constexpr int merchant_look_total = 36;                 // 좌우를 살피는 시간 (두 번)
-constexpr int merchant_ready_after_drop = 24;           // 돈뭉치를 내려놓은 뒤 A를 받기까지
+constexpr int merchant_drop_step_frames = 6;            // 돈뭉치를 내려놓는 동작 한 컷의 길이 (6컷)
+constexpr int merchant_drop_steps = 6;
+constexpr int merchant_ready_after_drop = merchant_drop_step_frames * merchant_drop_steps + 16;     // 내려놓고 일어선 뒤 A를 받기까지
 constexpr int merchant_message_delay = 14;
 
 void run_merchant_event(hs::economy& eco)
@@ -5382,19 +5387,21 @@ void run_merchant_event(hs::economy& eco)
             if(u < merchant_walk_frames)
             {
                 merchant.set_x(thief_left_x + (thief_stop_x - thief_left_x) * u / merchant_walk_frames);
-                merchant.set_item(bn::sprite_items::merchant, (u / 8) % 4);
+                merchant.set_item(bn::sprite_items::merchant, (u / 3) % 10);       // 걷기 10장 (한 바퀴 30프레임)
             }
             else if(frame < drop_frame)
             {
                 // 좌우를 살핀다 (뒤돌아봄)
                 merchant.set_x(thief_stop_x);
-                merchant.set_item(bn::sprite_items::merchant, 4);
+                merchant.set_item(bn::sprite_items::merchant, 10);
                 merchant.set_horizontal_flip(((u - merchant_walk_frames) / merchant_look_frames) % 2 == 1);
             }
             else
             {
                 // 받침대에 돈뭉치를 내려놓는다: 방이 금화 더미 방으로 바뀌고 상인은 주머니를 내민 모습 (도둑이 검을 집는 것과 같은 자리)
-                if(frame == drop_frame)
+                // 든 모습 → 허리를 숙임 → 바닥에 놓는다(다섯째 컷에서 금화 더미 방으로 바뀜) → 일어선다
+                const int drop_step = (frame - drop_frame) / merchant_drop_step_frames;
+                if(frame - drop_frame == merchant_drop_step_frames * 4)
                 {
                     room.set_visible(false);
                     room_coins.set_visible(true);
@@ -5402,8 +5409,8 @@ void run_merchant_event(hs::economy& eco)
                 }
 
                 merchant.set_horizontal_flip(false);
-                merchant.set_x(thief_stop_x + 6);
-                merchant.set_item(bn::sprite_items::merchant, 5);
+                merchant.set_x(thief_stop_x + 4);
+                merchant.set_item(bn::sprite_items::merchant, drop_step < merchant_drop_steps ? 11 + drop_step : 10);
                 ready = frame >= drop_frame + merchant_ready_after_drop && photo_countdown < 0;
             }
         }
