@@ -690,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.7";
+constexpr const char* game_version = "v0.6.8";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -1350,20 +1350,22 @@ forge_exit run_forge(hs::economy& eco, bn::seed_random& random, const bn::string
     };
 
     // 성공률 줄: 항상 "성공률 N%" (메시지는 아래 가운데에 나온다)
+    // 이름·판매가·강화비와 같이 바뀌도록, 망치질 중에는 강화 전 단계의 성공률을 그대로 보여 준다.
     auto show_chance = [&]()
     {
         bn::string<32> chance_line;
+        const bool keep_old_level = reveal_hold || current_phase == phase::HAMMERING;
 
-        if(eco.at_max_level() && ! reveal_hold)
+        if(eco.at_max_level() && ! keep_old_level)
         {
             chance_line = "최고 단계";
         }
         else
         {
-            // +29 성공 연출 중에는 아직 +28이었던 것처럼 이전 단계의 성공률을 보여 준다
+            // 망치질·+29 성공 연출 중에는 아직 이전 단계였던 것처럼 이전 단계의 성공률을 보여 준다
             int pct = eco.success_pct();
 
-            if(reveal_hold)
+            if(keep_old_level)
             {
                 pct = hs::level_table(eco.diff())[sword_level].success_pct - eco.time_penalty();
                 pct = pct < 0 ? 0 : pct;
