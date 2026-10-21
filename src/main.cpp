@@ -690,7 +690,7 @@ constexpr int menu_label_y = 61;
 
 // hard_unlocked: 스토리를 전부 클리어하면 true (세이브 연동은 나중에)
 // seed: 메뉴를 고른 순간의 프레임 수. 강화 난수 시드로 쓴다.
-constexpr const char* game_version = "v0.6.5";
+constexpr const char* game_version = "v0.6.6";
 
 title_choice run_title(bool hard_unlocked, unsigned& seed)
 {
@@ -5161,17 +5161,17 @@ void run_thief_event(hs::economy& eco, bn::seed_random& random)
             if(u < thief_walk_frames)
             {
                 thief.set_x(thief_left_x + (thief_stop_x - thief_left_x) * u / thief_walk_frames);
-                thief.set_item(bn::sprite_items::thief, (u / 6) % 4);
+                thief.set_item(bn::sprite_items::thief, (u / 3) % 8);        // 걷기 8장 (다리가 교차)
             }
             else if(frame < grab_frame)
             {
-                // 두리번거린다: 두 걸음 자세를 번갈아
+                // 두리번거린다: 서 있는 두 자세를 번갈아
                 thief.set_x(thief_stop_x + ((frame / 8) % 2));
-                thief.set_item(bn::sprite_items::thief, (frame / 8) % 2 ? 3 : 1);
+                thief.set_item(bn::sprite_items::thief, 8 + (frame / 8) % 2);
             }
             else
             {
-                // 받침대의 것을 집는다: 방이 빈 방으로 바뀌고 도둑은 손을 뻗은 모습
+                // 받침대의 것을 집는다: 방이 빈 방으로 바뀌고 도둑은 검을 쥔 모습
                 if(frame == grab_frame)
                 {
                     room_loot.set_visible(false);
@@ -5179,7 +5179,7 @@ void run_thief_event(hs::economy& eco, bn::seed_random& random)
                 }
 
                 thief.set_x(thief_stop_x + 6);
-                thief.set_item(bn::sprite_items::thief, 4);
+                thief.set_item(bn::sprite_items::thief, 10);
                 ready = frame >= grab_frame + thief_ready_after_grab && photo_countdown < 0;
             }
         }
